@@ -3,6 +3,7 @@
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 // import { ChatInput } from "@/components/chat-input";
 import { SidebarTrigger, WithSidebarLayout } from "@/components/app-sidebar";
+import { ChatInput } from "@/components/chat-input";
 
 export default function Home() {
   return (
@@ -36,7 +37,7 @@ export default function Home() {
 
           {/* Chat Input at the bottom */}
           <footer className="w-full flex-shrink-0 flex justify-center p-4">
-            {/* <ChatInput /> */}
+            <ChatInput />
           </footer>
         </div>
       </div>

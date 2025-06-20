@@ -46,7 +46,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
               <a href="#" className="transition-all duration-200">
                 <div className="flex flex-col items-center gap-0.5 leading-none">
                   <span className="font-bold text-center text-2xl">
-                    shareable.ai
+                    Square PHX AI
                   </span>
                 </div>
               </a>
