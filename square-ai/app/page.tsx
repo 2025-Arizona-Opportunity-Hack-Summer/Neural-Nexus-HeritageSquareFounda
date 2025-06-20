@@ -1,10 +1,9 @@
-"use client";
-
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-// import { ChatInput } from "@/components/chat-input";
-import { SidebarTrigger, WithSidebarLayout } from "@/components/app-sidebar";
+import { SidebarTrigger } from "@/components/app-sidebar";
+import { WithSidebarLayout } from "@/components/with-sidebar";
 import { ChatInput } from "@/components/chat-input";
 import { ModeToggle } from "@/components/theme-toggle";
+import { Button } from "@/components/ui/button";
+import { Settings2 } from "lucide-react";
 
 export default function Home() {
   return (
@@ -17,13 +16,9 @@ export default function Home() {
             <SidebarTrigger />
 
             <div className="flex items-center space-x-4">
-              <Avatar>
-                <AvatarImage
-                  src="https://github.com/shadcn.png"
-                  alt="User Avatar"
-                />
-                <AvatarFallback>CN</AvatarFallback>
-              </Avatar>
+              <Button variant="outline" size="icon" className="cursor-pointer">
+                <Settings2 />
+              </Button>
 
               <ModeToggle />
             </div>

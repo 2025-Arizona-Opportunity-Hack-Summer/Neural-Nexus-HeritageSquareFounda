@@ -15,14 +15,18 @@ import {
   SidebarTrigger as DefaultSidebarTrigger,
   SidebarInset,
   SidebarProvider,
+  SidebarFooter,
 } from "@/components/ui/sidebar";
-import { Button } from "@/components/ui/button";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { Pin, X } from "lucide-react";
 import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { cn } from "@/lib/utils";
+
 const newData = {
   chats: [
     { title: "Ancient civilization interest", url: "#" },
@@ -76,9 +80,9 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                       {item.title}
                     </a>
 
-                    <Pin className="size-5 flex-shrink-0 opacity-0 translate-x-5 group-hover/item:opacity-100 group-hover/item:translate-x-0 transition-all duration-300 ease-in-out cursor-pointer hover:text-black" />
+                    <Pin className="size-5 flex-shrink-0 opacity-0 translate-x-5 group-hover/item:opacity-100 group-hover/item:translate-x-0 transition-all duration-300 ease-in-out cursor-pointer hover:text-black dark:hover:text-gray-300" />
 
-                    <X className="size-5 flex-shrink-0 opacity-0 translate-x-5 group-hover/item:opacity-100 group-hover/item:translate-x-0 transition-all duration-300 ease-in-out cursor-pointer hover:text-black" />
+                    <X className="size-5 flex-shrink-0 opacity-0 translate-x-5 group-hover/item:opacity-100 group-hover/item:translate-x-0 transition-all duration-300 ease-in-out cursor-pointer hover:text-black dark:hover:text-gray-300" />
                   </div>
                 </SidebarMenuButton>
               </SidebarMenuItem>
@@ -86,6 +90,25 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           </SidebarMenu>
         </SidebarGroup>
       </SidebarContent>
+
+      <SidebarFooter>
+        <div
+          className={cn(
+            buttonVariants({ variant: "ghost" }),
+            "flex items-center justify-start gap-2 p-6 cursor-pointer",
+          )}
+        >
+          <Avatar>
+            <AvatarImage
+              src="https://github.com/shadcn.png"
+              alt="User Avatar"
+            />
+            <AvatarFallback>CN</AvatarFallback>
+          </Avatar>
+          <span>John Doe</span>
+        </div>
+      </SidebarFooter>
+
       <SidebarRail />
     </Sidebar>
   );
