@@ -1,0 +1,18 @@
+{
+  "name": "neural-nexus",
+  "module": "index.ts",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "start": "concurrently --kill-others-on-fail \"cd square-ai && bun install --frozen-lockfile && bun run dev\" \"cd ai-agent && make run\""
+  },
+  "devDependencies": {
+    "@types/bun": "latest"
+  },
+  "peerDependencies": {
+    "typescript": "^5"
+  },
+  "dependencies": {
+    "concurrently": "^9.1.2"
+  }
+}
