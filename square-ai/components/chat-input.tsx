@@ -161,7 +161,7 @@ export function ChatInput() {
                 type="button"
                 variant="ghost"
                 size="icon"
-                className="w-8 h-8 cursor-pointer rounded-lg text-muted-foreground hover:text-primary hover:bg-accent transition-all duration-200 flex items-center justify-center"
+                className="w-8 h-8 cursor-pointer rounded-lg text-muted-foreground hover:bg-accent transition-all duration-200 flex items-center justify-center"
                 aria-label="More options"
               >
                 <MoreHorizontal className="w-4 h-4" />
@@ -180,7 +180,7 @@ export function ChatInput() {
                 variant="ghost"
                 size="icon"
                 onClick={triggerFileSelect}
-                className="w-8 h-8 cursor-pointer rounded-lg text-muted-foreground hover:text-primary hover:bg-accent transition-all duration-200 flex items-center justify-center"
+                className="w-8 h-8 cursor-pointer rounded-lg text-muted-foreground hover:bg-accent transition-all duration-200 flex items-center justify-center"
                 aria-label="Add attachment"
               >
                 <Paperclip className="w-4 h-4" />

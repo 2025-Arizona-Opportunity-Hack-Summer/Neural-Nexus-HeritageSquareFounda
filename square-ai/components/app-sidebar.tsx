@@ -45,7 +45,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
             <SidebarMenuButton size="lg" asChild>
               <a href="#" className="transition-all duration-200">
                 <div className="flex flex-col items-center gap-0.5 leading-none">
-                  <span className="font-bold text-center text-2xl">
+                  <span className="font-bold text-center text-2xl dark:text-white">
                     Square PHX AI
                   </span>
                 </div>
@@ -71,7 +71,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                   <div className="group/item flex w-full items-center justify-start overflow-hidden cursor-pointer">
                     <a
                       href={item.url}
-                      className="truncate duration-200 flex-grow text-gray-600"
+                      className="truncate duration-200 flex-grow text-primary-foreground"
                     >
                       {item.title}
                     </a>
