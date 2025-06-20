@@ -1,5 +1,3 @@
-"use client";
-
 import * as React from "react";
 
 import {
@@ -19,13 +17,15 @@ import {
 } from "@/components/ui/sidebar";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button, buttonVariants } from "@/components/ui/button";
-import { Pin, X } from "lucide-react";
+import { LogIn, Pin, X } from "lucide-react";
 import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
+import { currentUser } from "@clerk/nextjs/server";
+import Link from "next/link";
 
 const newData = {
   chats: [
@@ -40,7 +40,11 @@ const newData = {
   ],
 };
 
-export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
+export async function AppSidebar({
+  ...props
+}: React.ComponentProps<typeof Sidebar>) {
+  const user = await currentUser();
+
   return (
     <Sidebar {...props}>
       <SidebarHeader>
@@ -92,21 +96,38 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       </SidebarContent>
 
       <SidebarFooter>
-        <div
-          className={cn(
-            buttonVariants({ variant: "ghost" }),
-            "flex items-center justify-start gap-2 p-6 cursor-pointer",
-          )}
-        >
-          <Avatar>
-            <AvatarImage
-              src="https://github.com/shadcn.png"
-              alt="User Avatar"
-            />
-            <AvatarFallback>CN</AvatarFallback>
-          </Avatar>
-          <span>John Doe</span>
-        </div>
+        {user ? (
+          <Link
+            href="/settings"
+            className={cn(
+              buttonVariants({ variant: "ghost" }),
+              "flex items-center justify-start gap-2 p-6 cursor-pointer",
+            )}
+          >
+            <>
+              <Avatar>
+                <AvatarImage src={user.imageUrl} alt="User Avatar" />
+                <AvatarFallback>CN</AvatarFallback>
+              </Avatar>
+              <span>{`${user.firstName} ${user.lastName}`}</span>
+            </>
+          </Link>
+        ) : (
+          <Link
+            href="/sign-in"
+            className={cn(
+              buttonVariants({ variant: "ghost" }),
+              "flex items-center justify-start p-6 cursor-pointer",
+            )}
+          >
+            <>
+              <LogIn className="size-4" />
+              <span className="text-base ml-1">Login</span>
+            </>
+          </Link>
+        )}
+
+        {/* <SidebarAvatar /> */}
       </SidebarFooter>
 
       <SidebarRail />
