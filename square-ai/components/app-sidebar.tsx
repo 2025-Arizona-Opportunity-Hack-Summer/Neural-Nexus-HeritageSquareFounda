@@ -126,8 +126,6 @@ export async function AppSidebar({
             </>
           </Link>
         )}
-
-        {/* <SidebarAvatar /> */}
       </SidebarFooter>
 
       <SidebarRail />

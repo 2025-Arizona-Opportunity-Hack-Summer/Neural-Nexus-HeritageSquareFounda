@@ -4,6 +4,12 @@ import { ChatInput } from "@/components/chat-input";
 import { ModeToggle } from "@/components/theme-toggle";
 import { Button } from "@/components/ui/button";
 import { Settings2 } from "lucide-react";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import Link from "next/link";
 
 export default function Home() {
   return (
@@ -16,9 +22,22 @@ export default function Home() {
             <SidebarTrigger />
 
             <div className="flex items-center space-x-4">
-              <Button variant="outline" size="icon" className="cursor-pointer">
-                <Settings2 />
-              </Button>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    className="cursor-pointer"
+                  >
+                    <Link href="/settings">
+                      <Settings2 />
+                    </Link>
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>Settings</p>
+                </TooltipContent>
+              </Tooltip>
 
               <ModeToggle />
             </div>
