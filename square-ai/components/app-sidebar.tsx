@@ -15,17 +15,16 @@ import {
   SidebarProvider,
   SidebarFooter,
 } from "@/components/ui/sidebar";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Button, buttonVariants } from "@/components/ui/button";
-import { LogIn, Pin, X } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Pin, X } from "lucide-react";
 import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { cn } from "@/lib/utils";
 import { currentUser } from "@clerk/nextjs/server";
-import Link from "next/link";
+import { NavUser } from "./nav-user";
+import { redirect } from "next/navigation";
 
 const newData = {
   chats: [
@@ -44,6 +43,7 @@ export async function AppSidebar({
   ...props
 }: React.ComponentProps<typeof Sidebar>) {
   const user = await currentUser();
+  if (!user) redirect("/sign-in");
 
   return (
     <Sidebar {...props}>
@@ -96,36 +96,13 @@ export async function AppSidebar({
       </SidebarContent>
 
       <SidebarFooter>
-        {user ? (
-          <Link
-            href="/settings"
-            className={cn(
-              buttonVariants({ variant: "ghost" }),
-              "flex items-center justify-start gap-2 p-6 cursor-pointer",
-            )}
-          >
-            <>
-              <Avatar>
-                <AvatarImage src={user.imageUrl} alt="User Avatar" />
-                <AvatarFallback>CN</AvatarFallback>
-              </Avatar>
-              <span>{`${user.firstName} ${user.lastName}`}</span>
-            </>
-          </Link>
-        ) : (
-          <Link
-            href="/sign-in"
-            className={cn(
-              buttonVariants({ variant: "ghost" }),
-              "flex items-center justify-start p-6 cursor-pointer",
-            )}
-          >
-            <>
-              <LogIn className="size-4" />
-              <span className="text-base ml-1">Login</span>
-            </>
-          </Link>
-        )}
+        <NavUser
+          user={{
+            name: `${user.firstName} ${user.lastName}`,
+            email: user.emailAddresses[0]!.emailAddress,
+            avatar: user.imageUrl,
+          }}
+        />
       </SidebarFooter>
 
       <SidebarRail />

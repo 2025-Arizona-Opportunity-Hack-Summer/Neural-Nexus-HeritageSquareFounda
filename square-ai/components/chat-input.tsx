@@ -7,7 +7,7 @@ import React, {
   FormEvent,
   KeyboardEvent,
 } from "react";
-import { Paperclip, MoreHorizontal, ArrowUp, FileText, X } from "lucide-react";
+import { Paperclip, ArrowUp, FileText, X } from "lucide-react";
 import Image from "next/image";
 import { Button } from "@/components/ui/button";
 
@@ -157,16 +157,6 @@ export function ChatInput() {
 
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                className="w-8 h-8 cursor-pointer rounded-lg text-muted-foreground hover:bg-accent transition-all duration-200 flex items-center justify-center"
-                aria-label="More options"
-              >
-                <MoreHorizontal className="w-4 h-4" />
-              </Button>
-
               <input
                 type="file"
                 multiple
