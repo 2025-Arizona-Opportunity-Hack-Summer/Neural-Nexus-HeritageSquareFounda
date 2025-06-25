@@ -16,6 +16,6 @@ export default defineSchema({
     lastName: v.string(),
     imageUrl: v.string(),
     verified: v.boolean(),
-    isAdmin: v.optional(v.boolean()),
+    isAdmin: v.boolean(),
   }).index("byClerkUserId", ["clerkUserId"]),
 });

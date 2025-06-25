@@ -25,6 +25,9 @@ import {
 import { currentUser } from "@clerk/nextjs/server";
 import { NavUser } from "./nav-user";
 import { redirect } from "next/navigation";
+import { fetchQuery } from "convex/nextjs";
+import { api } from "@/convex/_generated/api";
+import { getAuthToken } from "@/lib/auth";
 
 const newData = {
   chats: [
@@ -44,6 +47,10 @@ export async function AppSidebar({
 }: React.ComponentProps<typeof Sidebar>) {
   const user = await currentUser();
   if (!user) redirect("/sign-in");
+
+  const token = await getAuthToken();
+  const dbUser = await fetchQuery(api.users.current, {}, { token });
+  if (!dbUser) redirect("/sign-in");
 
   return (
     <Sidebar {...props}>
@@ -101,6 +108,7 @@ export async function AppSidebar({
             name: `${user.firstName} ${user.lastName}`,
             email: user.emailAddresses[0]!.emailAddress,
             avatar: user.imageUrl,
+            isAdmin: dbUser.isAdmin,
           }}
         />
       </SidebarFooter>

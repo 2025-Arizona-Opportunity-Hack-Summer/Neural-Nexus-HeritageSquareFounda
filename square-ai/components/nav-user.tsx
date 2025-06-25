@@ -1,6 +1,6 @@
 "use client";
 
-import { ChevronsUpDown, LogOut } from "lucide-react";
+import { ChevronsUpDown, LogOut, ShieldUser } from "lucide-react";
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
@@ -18,6 +18,8 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar";
 import { getInitials } from "@/lib/utils";
+import { useClerk } from "@clerk/nextjs";
+import { useRouter } from "next/navigation";
 
 export function NavUser({
   user,
@@ -26,9 +28,13 @@ export function NavUser({
     name: string;
     email: string;
     avatar: string;
+    isAdmin?: boolean;
   };
 }) {
+  console.log(user.isAdmin);
   const { isMobile } = useSidebar();
+  const { signOut } = useClerk();
+  const router = useRouter();
 
   return (
     <SidebarMenu>
@@ -45,13 +51,16 @@ export function NavUser({
                   {getInitials(user.name)}
                 </AvatarFallback>
               </Avatar>
+
               <div className="grid flex-1 text-left text-sm leading-tight">
                 <span className="truncate font-medium">{user.name}</span>
                 <span className="truncate text-xs">{user.email}</span>
               </div>
+
               <ChevronsUpDown className="ml-auto size-4" />
             </SidebarMenuButton>
           </DropdownMenuTrigger>
+
           <DropdownMenuContent
             className="w-(--radix-dropdown-menu-trigger-width) min-w-56 rounded-lg"
             side={isMobile ? "bottom" : "right"}
@@ -70,8 +79,22 @@ export function NavUser({
                 </div>
               </div>
             </DropdownMenuLabel>
+
+            {user.isAdmin && (
+              <>
+                <DropdownMenuSeparator />
+
+                <DropdownMenuItem onClick={() => router.push("/admin")}>
+                  <ShieldUser />
+                  Admin Panel
+                </DropdownMenuItem>
+              </>
+            )}
+
             <DropdownMenuSeparator />
-            <DropdownMenuItem>
+            <DropdownMenuItem
+              onClick={() => signOut({ redirectUrl: "/sign-in" })}
+            >
               <LogOut />
               Log out
             </DropdownMenuItem>

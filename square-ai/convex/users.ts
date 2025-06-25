@@ -26,6 +26,7 @@ export const upsertFromClerk = internalMutation({
       clerkUserId: data.id,
       imageUrl: data.has_image ? data.image_url : "",
       verified: false,
+      isAdmin: false,
     };
 
     const user = await userByClerkUserId(ctx, data.id);

@@ -26,7 +26,7 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <body className={`${outfit.variable} antialiased`}>
-        <ClerkProvider dynamic>
+        <ClerkProvider>
           <ConvexClientProvider>
             <ThemeProvider
               attribute="class"

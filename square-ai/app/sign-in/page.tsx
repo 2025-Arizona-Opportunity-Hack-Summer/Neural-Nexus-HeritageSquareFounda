@@ -4,8 +4,6 @@ import * as React from "react";
 import { OAuthStrategy } from "@clerk/types";
 import { useSignIn } from "@clerk/nextjs";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft } from "lucide-react";
-import Link from "next/link";
 
 export default function OauthSignIn() {
   const { signIn } = useSignIn();
@@ -34,15 +32,7 @@ export default function OauthSignIn() {
   // you want to add to your app. This example uses only Google.
   return (
     <div className="min-h-screen bg-background flex flex-col">
-      <div className="p-6">
-        <Button variant="ghost">
-          <Link href="/" className="flex items-center gap-2">
-            <ArrowLeft className="size-4" />
-            <span>Back to Chat</span>
-          </Link>
-        </Button>
-      </div>
-      <div className="flex-1 flex items-center justify-center px-6 sm:pb-10">
+      <div className="flex-1 flex items-center justify-center px-6 ">
         <div className="w-full max-w-md space-y-8">
           {/* Welcome Header */}
           <div className="text-center space-y-4">
@@ -97,7 +87,7 @@ export default function OauthSignIn() {
         </div>
       </div>
 
-      <div id="clerk-captcha" />
+      <div id="clerk-captcha"></div>
     </div>
   );
 }
