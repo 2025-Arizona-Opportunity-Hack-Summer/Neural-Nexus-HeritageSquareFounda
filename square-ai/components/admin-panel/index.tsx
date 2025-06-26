@@ -1,6 +1,5 @@
 "use client";
 
-import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -9,15 +8,12 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Search, UserCheck, UserX, Mail, ArrowLeft } from "lucide-react";
+import { UserCheck, UserX, Mail, ArrowLeft } from "lucide-react";
 import { DataTable } from "./data-table";
 import { columns } from "./columns";
 import { data } from "./sample-data";
 
 export default function Component() {
-  const [searchTerm, setSearchTerm] = useState("");
-
   return (
     <div className="min-h-screen bg-background p-4 md:p-6 lg:p-8">
       <div className="mx-auto max-w-7xl space-y-6">
@@ -97,34 +93,7 @@ export default function Component() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            {/* Table */}
-            <div className="flex items-center space-x-2 mb-4">
-              <div className="relative flex-1">
-                <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
-                <Input
-                  placeholder="Search users by name or email..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-8"
-                />
-              </div>
-            </div>
-
-            <div className="rounded-md border">
-              {/* Need to Create Data Table */}
-              <DataTable columns={columns} data={data} />
-            </div>
-
-            {/* Filtered  */}
-            {/* {filteredUsers.length === 0 && (
-              <div className="text-center py-8">
-                <UserX className="mx-auto h-12 w-12 text-muted-foreground" />
-                <h3 className="mt-2 text-sm font-semibold">No users found</h3>
-                <p className="mt-1 text-sm text-muted-foreground">
-                  Try adjusting your search criteria.
-                </p>
-              </div>
-            )} */}
+            <DataTable columns={columns} data={data} />
           </CardContent>
         </Card>
 
