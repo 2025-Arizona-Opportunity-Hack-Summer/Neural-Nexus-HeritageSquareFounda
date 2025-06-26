@@ -1,1 +1,7 @@
 .env
+
+# Authentication and credentials files for Google Cloud
+AuthKey.txt
+credentials.json
+pips.txt
+token.json
