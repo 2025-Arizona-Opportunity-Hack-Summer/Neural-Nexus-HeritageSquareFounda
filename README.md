@@ -1,1 +1,1 @@
-This branch is a side project that uses Gemini to analyze all the files in a Google Drive and assign them relevant tags. The end goal is for a future projec to use these tags to organize the Google Drive. 
+This branch is a side project that uses Gemini to analyze all the files in a Google Drive and assign them relevant tags. The end goal is for a future project to use these tags to organize the Google Drive. 

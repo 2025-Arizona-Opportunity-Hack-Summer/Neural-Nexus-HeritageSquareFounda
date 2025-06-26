@@ -26,7 +26,7 @@ from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow
 
 # Other misc. libraries
-from PIL import Image
+# from PIL import Image
 from google import genai
 import tempfile
 
