@@ -2,13 +2,8 @@ import { SidebarTrigger } from "@/components/app-sidebar";
 import { WithSidebarLayout } from "@/components/with-sidebar";
 import { ChatInput } from "@/components/chat-input";
 import { ModeToggle } from "@/components/theme-toggle";
-import { fetchQuery } from "convex/nextjs";
-import { api } from "@/convex/_generated/api";
 
 export default async function ChatPage() {
-  const dbUser = await fetchQuery(api.users.current);
-  console.log(dbUser);
-
   return (
     <WithSidebarLayout>
       <div className="flex h-screen">

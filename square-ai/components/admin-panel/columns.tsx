@@ -2,17 +2,11 @@
 
 import { Doc } from "@/convex/_generated/dataModel";
 import { ColumnDef } from "@tanstack/react-table";
-import { ArrowUpDown, MoreHorizontal } from "lucide-react";
+import { ArrowUpDown } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+import { Badge } from "@/components/ui/badge";
+import { UserActionMenu } from "./action-menu";
 
 export const columns: ColumnDef<Doc<"users">>[] = [
   {
@@ -50,34 +44,35 @@ export const columns: ColumnDef<Doc<"users">>[] = [
   {
     accessorKey: "verified",
     header: "Verified",
+    cell: ({ row }) => {
+      const user = row.original;
+
+      return (
+        <Badge variant={user.verified ? "default" : "destructive"}>
+          {user.verified ? "Verified" : "Not Verified"}
+        </Badge>
+      );
+    },
   },
   {
     accessorKey: "isAdmin",
     header: "Admin Privileges",
+    cell: ({ row }) => {
+      const user = row.original;
+
+      return (
+        <Badge variant={user.isAdmin ? "default" : "destructive"}>
+          {user.isAdmin ? "Admin" : "Not Admin"}
+        </Badge>
+      );
+    },
   },
   {
     id: "actions",
     cell: ({ row }) => {
       const user = row.original;
-      console.log(user);
 
-      return (
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="ghost" className="h-8 w-8 p-0">
-              <span className="sr-only">Open menu</span>
-              <MoreHorizontal className="h-4 w-4" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuLabel>Actions</DropdownMenuLabel>
-            <DropdownMenuItem>Example Action 1</DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem>Example Action 2</DropdownMenuItem>
-            <DropdownMenuItem>Example Action 3</DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-      );
+      return <UserActionMenu user={user} />;
     },
   },
 ];

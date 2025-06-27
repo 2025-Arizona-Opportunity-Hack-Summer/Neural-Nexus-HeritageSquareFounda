@@ -1,8 +1,13 @@
-import { internalMutation, query, QueryCtx } from "./_generated/server";
+import {
+  internalMutation,
+  mutation,
+  query,
+  QueryCtx,
+} from "./_generated/server";
 import { UserJSON } from "@clerk/backend";
 import { v, Validator } from "convex/values";
 
-export const getAllUsers = query({
+export const all = query({
   args: {},
   handler: async (ctx) => {
     return await ctx.db.query("users").collect();
@@ -73,3 +78,31 @@ async function userByClerkUserId(ctx: QueryCtx, clerkUserId: string) {
     .withIndex("byClerkUserId", (q) => q.eq("clerkUserId", clerkUserId))
     .unique();
 }
+
+export const verify = mutation({
+  args: { clerkUserId: v.string() },
+  handler: async (ctx, { clerkUserId }) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (identity === null) {
+      return null;
+    }
+    const user = await userByClerkUserId(ctx, clerkUserId);
+    if (!user) return null;
+
+    return await ctx.db.patch(user._id, { verified: !user.verified });
+  },
+});
+
+export const changeAdminStatus = mutation({
+  args: { clerkUserId: v.string() },
+  handler: async (ctx, { clerkUserId }) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (identity === null) {
+      return null;
+    }
+    const user = await userByClerkUserId(ctx, clerkUserId);
+    if (!user) return null;
+
+    return await ctx.db.patch(user._id, { isAdmin: !user.isAdmin });
+  },
+});
