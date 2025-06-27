@@ -32,3 +32,17 @@ export async function changeUserAdminStatus() {
 
   revalidatePath("/admin");
 }
+
+export async function bulkVerifyUsers(clerkIds: string[]) {
+  const token = await getAuthToken();
+  const dbUser = await fetchQuery(api.users.current, {}, { token });
+  if (!dbUser || !dbUser.isAdmin) return null;
+
+  await fetchMutation(
+    api.users.bulkVerify,
+    { clerkUserIds: clerkIds },
+    { token },
+  );
+
+  revalidatePath("/admin");
+}

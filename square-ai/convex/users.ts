@@ -6,6 +6,7 @@ import {
 } from "./_generated/server";
 import { UserJSON } from "@clerk/backend";
 import { v, Validator } from "convex/values";
+import { api } from "./_generated/api";
 
 export const all = query({
   args: {},
@@ -104,5 +105,21 @@ export const changeAdminStatus = mutation({
     if (!user) return null;
 
     return await ctx.db.patch(user._id, { isAdmin: !user.isAdmin });
+  },
+});
+
+export const bulkVerify = mutation({
+  args: { clerkUserIds: v.array(v.string()) },
+  handler: async (ctx, { clerkUserIds }) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (identity === null) {
+      return null;
+    }
+
+    clerkUserIds.forEach((clerkId) =>
+      ctx.runMutation(api.users.verify, { clerkUserId: clerkId }),
+    );
+
+    return "success";
   },
 });

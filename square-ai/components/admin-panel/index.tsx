@@ -8,11 +8,17 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { UserCheck, UserX, Mail, ArrowLeft } from "lucide-react";
 import { DataTable } from "./data-table";
 import { columns } from "./columns";
 import { Doc } from "@/convex/_generated/dataModel";
 import Link from "next/link";
+import { bulkVerifyUsers } from "./actions";
 
 export function AdminPanel({ users }: { users: Doc<"users">[] }) {
   return (
@@ -33,10 +39,26 @@ export function AdminPanel({ users }: { users: Doc<"users">[] }) {
               <Mail className="mr-2 h-4 w-4" />
               Send Notifications
             </Button>
-            <Button className="bg-primary text-primary-foreground hover:bg-primary/90">
-              <UserCheck className="mr-2 h-4 w-4" />
-              Bulk Verify
-            </Button>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  className="bg-primary text-primary-foreground hover:bg-primary/90"
+                  onClick={() =>
+                    bulkVerifyUsers(
+                      users
+                        .filter((user) => !user.verified)
+                        .map((user) => user.clerkUserId),
+                    )
+                  }
+                >
+                  <UserCheck className="mr-2 h-4 w-4" />
+                  Bulk Verify
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>Verify All Non-Verified Users</p>
+              </TooltipContent>
+            </Tooltip>
           </div>
         </div>
 

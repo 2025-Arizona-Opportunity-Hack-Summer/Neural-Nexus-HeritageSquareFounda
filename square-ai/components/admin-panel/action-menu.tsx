@@ -1,9 +1,9 @@
 import {
   MoreHorizontal,
-  ShieldBan,
-  ShieldCheck,
   ShieldOff,
   ShieldUser,
+  UserCheck,
+  UserX,
 } from "lucide-react";
 import { Doc } from "@/convex/_generated/dataModel";
 import {
@@ -29,13 +29,14 @@ export function UserActionMenu({ user }: { user: Doc<"users"> }) {
       <DropdownMenuContent align="end">
         <DropdownMenuLabel>Actions</DropdownMenuLabel>
         {user.verified ? (
+          // FIXME: fix this
           <DropdownMenuItem onClick={() => verifyUser()}>
-            <ShieldBan />
+            <UserX />
             Deboard User
           </DropdownMenuItem>
         ) : (
           <DropdownMenuItem onClick={() => verifyUser()}>
-            <ShieldCheck />
+            <UserCheck />
             Verify User
           </DropdownMenuItem>
         )}
