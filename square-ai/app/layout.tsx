@@ -1,9 +1,10 @@
 import type { Metadata } from "next";
 import { Outfit } from "next/font/google";
-import "./globals.css";
 import { ConvexClientProvider } from "@/components/convex-client-provider";
 import { ClerkProvider } from "@clerk/nextjs";
 import { ThemeProvider } from "@/components/theme-provider";
+import { GlobalCommandDialog } from "@/components/global-command-dialog";
+import "./globals.css";
 
 const outfit = Outfit({
   variable: "--font-sans",
@@ -35,6 +36,8 @@ export default function RootLayout({
               disableTransitionOnChange
             >
               {children}
+
+              <GlobalCommandDialog />
             </ThemeProvider>
           </ConvexClientProvider>
         </ClerkProvider>
