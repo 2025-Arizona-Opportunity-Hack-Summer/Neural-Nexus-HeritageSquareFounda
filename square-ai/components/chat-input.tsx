@@ -1,15 +1,10 @@
 "use client";
 
-import React, {
-  useState,
-  useRef,
-  ChangeEvent,
-  FormEvent,
-  KeyboardEvent,
-} from "react";
+import React, { useRef, ChangeEvent, FormEvent, KeyboardEvent } from "react";
 import { Paperclip, ArrowUp, FileText, X } from "lucide-react";
-import Image from "next/image";
 import { Button } from "@/components/ui/button";
+import Image from "next/image";
+import { useChatContext } from "@/contexts/chat";
 
 interface FilePreviewProps {
   file: File;
@@ -52,8 +47,7 @@ const FilePreview = ({ file, onRemove }: FilePreviewProps) => {
 };
 
 export function ChatInput() {
-  const [input, setInput] = useState<string>("");
-  const [attachments, setAttachments] = useState<File[]>([]);
+  const { input, setInput, attachments, setAttachments } = useChatContext();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
