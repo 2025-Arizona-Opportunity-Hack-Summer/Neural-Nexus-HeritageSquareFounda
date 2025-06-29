@@ -76,7 +76,7 @@ export async function getCurrentUser(ctx: QueryCtx) {
 async function userByClerkUserId(ctx: QueryCtx, clerkUserId: string) {
   return await ctx.db
     .query("users")
-    .withIndex("byClerkUserId", (q) => q.eq("clerkUserId", clerkUserId))
+    .withIndex("by_clerk_user_id", (q) => q.eq("clerkUserId", clerkUserId))
     .unique();
 }
 

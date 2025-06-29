@@ -1,4 +1,4 @@
-import * as React from "react";
+"use client";
 
 import {
   Sidebar,
@@ -11,8 +11,6 @@ import {
   SidebarMenuItem,
   SidebarRail,
   SidebarTrigger as DefaultSidebarTrigger,
-  SidebarInset,
-  SidebarProvider,
   SidebarFooter,
 } from "@/components/ui/sidebar";
 import { Button } from "@/components/ui/button";
@@ -22,12 +20,9 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { currentUser } from "@clerk/nextjs/server";
 import { NavUser } from "./nav-user";
-import { redirect } from "next/navigation";
-import { fetchQuery } from "convex/nextjs";
-import { api } from "@/convex/_generated/api";
-import { getAuthToken } from "@/lib/auth";
+import { Doc } from "@/convex/_generated/dataModel";
+import { useRouter } from "next/navigation";
 
 const newData = {
   chats: [
@@ -42,15 +37,12 @@ const newData = {
   ],
 };
 
-export async function AppSidebar({
+export function AppSidebar({
+  user,
   ...props
-}: React.ComponentProps<typeof Sidebar>) {
-  const user = await currentUser();
-  if (!user) redirect("/sign-in");
-
-  const token = await getAuthToken();
-  const dbUser = await fetchQuery(api.users.current, {}, { token });
-  if (!dbUser) redirect("/sign-in");
+}: React.ComponentProps<typeof Sidebar> & { user: Doc<"users"> }) {
+  const router = useRouter();
+  // TODO: add delete chat here
 
   return (
     <Sidebar {...props}>
@@ -69,7 +61,13 @@ export async function AppSidebar({
           </SidebarMenuItem>
 
           <SidebarMenuItem>
-            <Button variant="default" className="cursor-pointer w-full">
+            <Button
+              variant="default"
+              className="cursor-pointer w-full"
+              // disabled={loading}
+              onClick={() => router.push("/chat")}
+            >
+              {/* {loading && <LoaderCircle className="size-4 animate-spin" />} */}
               <span className="text-sm">New Chat</span>
             </Button>
           </SidebarMenuItem>
@@ -106,9 +104,9 @@ export async function AppSidebar({
         <NavUser
           user={{
             name: `${user.firstName} ${user.lastName}`,
-            email: user.emailAddresses[0]!.emailAddress,
+            email: user.email,
             avatar: user.imageUrl,
-            isAdmin: dbUser.isAdmin,
+            isAdmin: user.isAdmin,
           }}
         />
       </SidebarFooter>
@@ -128,14 +126,5 @@ export function SidebarTrigger() {
         <p>⌘B</p>
       </TooltipContent>
     </Tooltip>
-  );
-}
-
-export function WithSidebarLayout({ children }: { children: React.ReactNode }) {
-  return (
-    <SidebarProvider>
-      <AppSidebar />
-      <SidebarInset>{children}</SidebarInset>
-    </SidebarProvider>
   );
 }
