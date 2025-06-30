@@ -37,8 +37,89 @@ load_dotenv()
 #import google.generativeai as genai
 client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
 
-SCOPES = ["https://www.googleapis.com/auth/drive"]
+# First scope used to download drive files and update labels (tags)
+# Second scope used to create the label in the first place that will be associated with metadata
+# NOTE: This means that to use this program, you must use a Google account with admin access to the Google Drive
+SCOPES = ["https://www.googleapis.com/auth/drive", "https://www.googleapis.com/auth/drive.admin.labels"]
 
+# To assign files a tab, the metadata label must first be created. 
+def createTagLabel(flow, creds):
+  service = build("drivelabels", "v2", credentials=creds)
+  
+  # Step 1: Create the label body
+  label_body = {
+    'label_type': 'ADMIN',
+    'properties': {
+        'title': 'Tag'
+    },
+    'fields': [{
+        'properties': {
+            'display_name': 'Category'
+        },
+        'selection_options': {
+            'list_options': {},
+            'choices': [{
+                'properties': {
+                    'display_name': 'Philosophy'
+                }
+            }, {
+                'properties': {
+                    'display_name': 'Machine Learning'
+                }
+            }, {
+                'properties': {
+                    'display_name': 'Historical Image'
+                }
+            }, {
+                'properties': {
+                    'display_name': 'Modern Image'
+                }
+            }]
+        }
+    }]
+    }
+  
+  # Step 2: Upload the label as unpublished, then publish it. After this step it can now be used. 
+  try:
+    response = service.labels().create(
+        body=label_body, useAdminAccess=True).execute()
+
+    label_id = response.get('id')
+    
+    if label_id:
+      print(f"Label created with ID: {label_id}")
+      service.labels().publish(
+        name=f'labels/{label_id}',  # Use f-string to embed the label_id
+        body={
+            'use_admin_access': True
+        }).execute()
+      print("Label published successfully")
+  except Exception as e:
+    print(f"Failed to create Tag label:\n{e}")
+    exit(1)
+
+# Checks to see if the tag label already exists in the Drive
+def checkTagLabelExists(flow, creds):
+  service = build("drivelabels", "v2", credentials=creds)
+  response = service.labels().list(view='LABEL_VIEW_FULL').execute()
+  labels = response['labels']
+  
+  if not labels:
+    print("No labels found.")
+    return False
+
+  for label in labels:
+    if label['properties']['title'] == 'Tag':
+      print("Tag label already exists.")
+      return True
+  
+  return False
+
+# Stores a file's tag in its metadata
+def updateMetadata(file_id, tag):
+  pass
+
+# Provides Gemini with a file and has it return a tag
 def promptGemini(temp_file_path):
 
   myfile = client.files.upload(file=temp_file_path)
@@ -54,10 +135,10 @@ def promptGemini(temp_file_path):
   response = response.text
   print(f"Response:\n\n{response}\n\n")
 
+# Downloads a file from Google Drive and 
+# calls promptGemini() to analyze it
 def download_file(real_file_id):
   #creds, _ = google.auth.default()
-  flow = InstalledAppFlow.from_client_secrets_file("credentials.json", SCOPES)
-  creds = flow.run_local_server(port=0)
 
   try:
     # create drive api client
@@ -93,8 +174,23 @@ def download_file(real_file_id):
     print(f"An error occurred: {error}")
     file = None
 
+# Crawls through the user's Google Drive and analyzes each file compatible with Gemini
+def crawlDrive():
+  pass
+
+def main():
+  # These are used for accessing the Drive and Labels APIs
+  flow = InstalledAppFlow.from_client_secrets_file("credentials.json", SCOPES)
+  creds = flow.run_local_server(port=0)
+
+  # IF tag metadata label does not exist, create it
+  if not checkTagLabelExists(flow, creds):
+    # Tag does not exist, so create it
+    createTagLabel() 
+
+  download_file(real_file_id="1yZd5pAI3WTIPyH67_QBHFBZ10Fk6tMRX")
 
 if __name__ == "__main__":
   # For testing purposes, use an image of a cat with a crab on its head
   # from my Drive. Ultimately the program will crawl through all files in the Drive
-  download_file(real_file_id="1yZd5pAI3WTIPyH67_QBHFBZ10Fk6tMRX")
+  main()
