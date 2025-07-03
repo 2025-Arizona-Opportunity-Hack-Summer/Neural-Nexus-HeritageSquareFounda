@@ -4,7 +4,6 @@ import { ConvexClientProvider } from "@/components/convex-client-provider";
 import { ClerkProvider } from "@clerk/nextjs";
 import { ThemeProvider } from "@/components/theme-provider";
 import { GlobalCommandDialog } from "@/components/global-command-dialog";
-import { ChatContextProvider } from "@/contexts/chat";
 import "./globals.css";
 
 const outfit = Outfit({
@@ -36,10 +35,8 @@ export default function RootLayout({
               enableSystem
               disableTransitionOnChange
             >
-              <ChatContextProvider>
-                {children}
-                <GlobalCommandDialog />
-              </ChatContextProvider>
+              {children}
+              <GlobalCommandDialog />
             </ThemeProvider>
           </ConvexClientProvider>
         </ClerkProvider>
