@@ -23,24 +23,18 @@ import {
 import { NavUser } from "./nav-user";
 import { Doc } from "@/convex/_generated/dataModel";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 
-const newData = {
-  chats: [
-    { title: "Ancient civilization interest", url: "#" },
-    { title: "Modern interests", url: "#" },
-    {
-      title:
-        "Ancient civilization interestinterestinterestinterestinterestinterest",
-      url: "#",
-    },
-    { title: "Ancient civilization interests", url: "#" },
-  ],
+type SidebarProps = {
+  user: Doc<"users">;
+  chats: Doc<"chats">[];
 };
 
 export function AppSidebar({
   user,
+  chats,
   ...props
-}: React.ComponentProps<typeof Sidebar> & { user: Doc<"users"> }) {
+}: React.ComponentProps<typeof Sidebar> & SidebarProps) {
   const router = useRouter();
   // TODO: add delete chat here
 
@@ -78,16 +72,16 @@ export function AppSidebar({
         <SidebarGroup>
           <SidebarGroupLabel>Chats</SidebarGroupLabel>
           <SidebarMenu>
-            {newData.chats.map((item) => (
-              <SidebarMenuItem key={item.title}>
+            {chats.map((chat) => (
+              <SidebarMenuItem key={chat.title}>
                 <SidebarMenuButton asChild>
                   <div className="group/item flex w-full items-center justify-start overflow-hidden cursor-pointer">
-                    <a
-                      href={item.url}
+                    <Link
+                      href={`/chat/${chat._id}`}
                       className="truncate duration-200 flex-grow text-primary-foreground"
                     >
-                      {item.title}
-                    </a>
+                      {chat.title}
+                    </Link>
 
                     <Pin className="size-5 flex-shrink-0 opacity-0 translate-x-5 group-hover/item:opacity-100 group-hover/item:translate-x-0 transition-all duration-300 ease-in-out cursor-pointer hover:text-black dark:hover:text-gray-300" />
 

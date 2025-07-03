@@ -28,9 +28,11 @@ export async function WithSidebarLayout({
   const dbUser = await fetchQuery(api.users.current, {}, { token });
   if (!dbUser) redirect("/sign-in");
 
+  const allChats = await fetchQuery(api.chats.getAllCurrentUser, {}, { token });
+
   return (
     <SidebarProvider defaultOpen={defaultOpen} defaultWidth={sidebarWidth}>
-      <AppSidebar user={dbUser} />
+      <AppSidebar user={dbUser} chats={allChats} />
       <SidebarInset>{children}</SidebarInset>
     </SidebarProvider>
   );
