@@ -39,7 +39,7 @@ load_dotenv()
 client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
 
 validTags = ['Machine Learning', 'Philosophy', 'Historic Image', 'Non-Historic Image']
-geminiCompatibleFileTypes = ['.png', '.jpg', '.jpeg', '.webp', '.pdf'] # TODO UPDATE THIS LIST AS NEEDED
+geminiCompatibleFileTypes = ['.png', '.jpg', '.jpeg', '.webp', '.pdf', '.doc', '.docx', '.txt'] # TODO UPDATE THIS LIST AS NEEDED
 
 # First scope used to download drive files and update labels (tags)
 # Second scope used to create the label in the first place that will be associated with metadata
@@ -67,10 +67,48 @@ To classify the image that you have been provided with, analyze the following de
 Classify the image based on these criteria and return ONLY Historic Image or Non-Historic Image, and nothing else
 """
 
+documentAnalyzerPrompt = """You are an AI model tasked with analyzing text documents to classify them as either 'Machine Learning' or 'Philosophy'. Your response must ONLY be "Machine Learning" or "Philosophy" with no additional explanation or text.
+
+To classify the document that you have been provided with, analyze the following details:
+
+1.  **Core Concepts and Terminology:**
+    * **Machine Learning**: Look for terms such as "algorithm," "neural network," "deep learning," "AI," "data set," "model training," "supervised learning," "unsupervised learning," "reinforcement learning," "feature engineering," "overfitting," "bias," "accuracy," "precision," "recall," "F1-score," "regression," "classification," "clustering," "computer vision," "natural language processing (NLP)," "generative AI," "transformer," "gradient descent," "backpropagation," "tensor," "frameworks" (e.g., TensorFlow, PyTorch), "computational efficiency," "optimization," "predictive analytics," "big data," "data science," "statistical modeling," "pattern recognition," "artificial general intelligence (AGI)," "ethics in AI," "explainable AI (XAI)," "causality in ML," "reinforcement learning from human feedback (RLHF)."
+    * **Philosophy**: Look for terms such as "epistemology," "metaphysics," "ethics," "logic," "aesthetics," "ontology," "existentialism," "phenomenology," "rationalism," "empiricism," "idealism," "materialism," "dualism," "monism," "free will," "determinism," "consciousness," "mind-body problem," "virtue," "justice," "truth," "knowledge," "reason," "morality," "value," "meaning of life," "human nature," "political philosophy," "social contract," "utilitarianism," "deontology," "virtue ethics," "analytic philosophy," "continental philosophy," "philosophy of mind," "philosophy of language," "philosophy of science," "philosophy of religion," "a priori," "a posteriori," "deduction," "induction," "argument," "premise," "conclusion," "fallacy," "critique," "dialectic," "hermeneutics," "postmodernism."
+
+2.  **Subject Matter and Focus:**
+    * **Machine Learning**: Documents primarily discussing the development, application, theoretical underpinnings, performance, or societal impact of artificial intelligence systems, data analysis techniques, predictive models, and automation. This includes research papers on new algorithms, tutorials on implementing ML models, discussions on data privacy in AI, or analyses of AI's role in various industries.
+    * **Philosophy**: Documents primarily discussing fundamental questions about existence, knowledge, values, reason, mind, and language. This includes analyses of ethical dilemmas, discussions on the nature of reality, explorations of human consciousness, interpretations of historical philosophical texts, or arguments for different theories of knowledge or morality.
+
+3.  **Style and Structure:**
+    * **Machine Learning**: Often characterized by a more technical, empirical, or mathematical style, including equations, algorithms, experimental results, data visualizations, and discussions of computational methods. May include code snippets or pseudocode. Focus is on problem-solving, efficiency, and practical application.
+    * **Philosophy**: Often characterized by a more abstract, argumentative, and discursive style, involving logical reasoning, conceptual analysis, thought experiments, historical context, and critical evaluation of ideas. Focus is on conceptual clarity, coherence, and the exploration of fundamental questions.
+
+Classify the document based on these criteria and return ONLY "Machine Learning" or "Philosophy", and nothing else.
+"""
+
+
+'''
+    --- GEMINI SUPPORTS THE FOLLOWING FILE TYPES:---
+  Code files including C, CPP, PY, JAVA, PHP, SQL, and HTML*
+  Document files: DOC, DOCX, PDF, RTF, DOT, DOTX, HWP, HWPX
+  Documents created in Google Docs
+  Images including PNG, JPG, JPEG, WEBP, and HEIF
+  Plain text files: TXT
+  Presentation files: PPTX
+  Presentations created with Google Slides
+  Spreadsheet files: XLS, XLSX*
+  Spreadsheets created in Google Sheets*
+  Tabular data files: CSV, TSV*
+  Videos: MP4, MPEG, MOV, AVI, X-FLV, MPG, WEBM, WMV, 3GPP
+'''
 fileAndPromptDict = {
     ".jpg": imageAnalyzerPrompt,
     ".jpeg": imageAnalyzerPrompt,
     ".png": imageAnalyzerPrompt,
+    ".pdf": documentAnalyzerPrompt,
+    ".txt": documentAnalyzerPrompt,
+    ".doc": documentAnalyzerPrompt,
+    ".docx": documentAnalyzerPrompt
 }
 
 # Provides Gemini with a file and has it return a tag
@@ -91,12 +129,13 @@ def promptGemini(temp_file_path, promptMessage):
       return cleanedResponse
   else:
     print(f"Invalid response from Gemini: {cleanedResponse}.\nValid tags are: {validTags}")
-    print("Setting tag to 'Uncategorized' in meantime.")
+    print("Returning tag as 'Uncategorized'")
     return "Uncategorized"
 
 # Sets up authentication needed to access Drive API
 # Returns the service object for the Drive API
 def authenticateDriveAPI():
+  # The following is copied from the Drive API documentation quickstart guide
   creds = None
   flow = None
 
@@ -147,18 +186,21 @@ def updateTagMetadata(fileId, tagValue, service):
     print(f"An error occurred while updating metadata: {error}")
     return False
 
-# Downloads a file from Google Drive and 
-# calls promptGemini() to analyze it
-def download_file(fileId, service):
-  #creds, _ = google.auth.default()
-  # create drive api client
+# 1) Downloads a file from Google Drive  
+# 2) Calls promptGemini() to analyze it
+# 3) Updates metadata with the tag (or 'Uncategorized' if there is an issue)
+def downloadFileAndUpdateMetadata(fileId, mimeType, service):
 
   try:
-    # Gemini must be provided witht he mim type of the file, so get that now
-    file_metadata = service.files().get(fileId=fileId, fields="mimeType").execute()
-    mime_type = file_metadata.get("mimeType")
-    print(f"MIME Type: {mime_type}")
-
+    # First, check if the file type is compatible with Gemini
+    # If it isn't, set the tag is 'Uncategorized'
+    fileType = mimetypes.guess_extension(mimeType) # use the mimetypes library to extract file type
+    
+    if (fileType is None) or (fileType not in geminiCompatibleFileTypes):
+      print(f"File type {fileType} is not compatible with Gemini")
+      print("Setting tag to 'Uncategorized'")
+      updateTagMetadata(fileId, "Uncategorized", service)
+      return
     
     request = service.files().get_media(fileId=fileId)
     file = io.BytesIO()
@@ -170,49 +212,92 @@ def download_file(fileId, service):
     
     # Reset the file pointer to the beginning of the stream
     file.seek(0)
-
-    fileType = mimetypes.guess_extension(mime_type)
-
-    if (fileType is not None) and (fileType in geminiCompatibleFileTypes):
-      # Convert the byte stream to a temporary file so that Gemini can actually use it
-      with tempfile.NamedTemporaryFile(delete=False, suffix=fileType) as temp_file: # 
-        temp_file.write(file.getvalue())
-        temp_file_path = temp_file.name 
-      
-      promptMessage = fileAndPromptDict[fileType]
-      tagValue = promptGemini(temp_file_path, promptMessage)
-
-      updateTagMetadata(fileId, tagValue, service)
     
-    elif (fileType is not None) and (fileType not in geminiCompatibleFileTypes):
-      print(f"File type {fileType} is not compatible with Gemini")
-      print("Setting tag to 'Uncategorized' in meantime.")
-      updateTagMetadata(fileId, "Uncategorized", service)
+    # Convert the byte stream to a temporary file so that Gemini can actually use it
+    with tempfile.NamedTemporaryFile(delete=False, suffix=fileType) as temp_file: # 
+      temp_file.write(file.getvalue())
+      temp_file_path = temp_file.name 
     
-    else:
-      print(f"Could not determine file type for file ID {fileId}.")
-      print("Setting tag to 'Uncategorized' in meantime.")
-      updateTagMetadata(fileId, "Uncategorized", service)
+    # All the conditions are met to send the file to Gemini
+    promptMessage = fileAndPromptDict[fileType]
+    tagValue = promptGemini(temp_file_path, promptMessage)
+
+    updateTagMetadata(fileId, tagValue, service)
     
   except HttpError as error:
     print(f"An error occurred: {error}")
     file = None
 
 # Crawls through the user's Google Drive and analyzes each file compatible with Gemini
-def crawlDrive():
-  # TODO
+def crawlDrive(service):
+  pageToken = None # Used to request the next step of 1000 files from the Drive API
+  pageSize = 1000 # The number of files to retrieve (max allowed per request is 1000)
+  
+  try:
+    while True:
+      nextFilesBatch = [] # The next batch of files to preform tagging on
+      
+      # Get the json file containing the list of files from the Drive API
+      retrievedFilesJson = service.files().list(
+          pageSize=pageSize,
+          fields="nextPageToken, files(id, name, mimeType)",
+          pageToken=pageToken
+      ).execute()
+
+      fileItems = retrievedFilesJson.get('files', [])
+      if not fileItems:
+        print("No files retrieved from Drive API.")
+        return
+      
+      for item in fileItems:
+        nextFilesBatch.append( (item['id'], item['mimeType']) )
+
+      print(f"Successfully retrieved {len(nextFilesBatch)} files from Drive API.")
+      print("Now performing tagging on each file")
+
+      for file in nextFilesBatch:
+        fileId = file[0]
+        mimeType = file[1]
+
+        # CHECK IF FILE ALREADY HAS TAG
+        fileMetadata = service.files().get(
+          fileId=fileId, 
+          fields='properties'
+        ).execute()
+
+        if ('properties' in fileMetadata) and ('tag' in fileMetadata['properties']):
+          print("File already has tag, skipping analysis")
+        else:
+          # File doesn't have tag, so analyze it
+          print(f"Analyzing file ID: {fileId}, MIME Type: {mimeType}")
+          downloadFileAndUpdateMetadata(fileId, mimeType, service)
+
+  except HttpError as error:
+    print(f"An HTTP error occurred while retrieving files: {error}")
+    exit(1)
+  except Exception as e:
+    print(f"An error occurred while retrieving files: {e}")
+    exit(1)
+
   # Check if file already has tag
   # If no tag, or if tag is 'Uncategorized', then analyze it
-  pass
+  #downloadFileAndUpdateMetadata(fileId, service)
+  
 
 def main():
   service = authenticateDriveAPI()
-  download_file("1yZd5pAI3WTIPyH67_QBHFBZ10Fk6tMRX", service)
+
+  crawlDrive(service)
 
 if __name__ == "__main__":
   # For testing purposes, use an image of a cat with a crab on its head
   # from my Drive. Ultimately the program will crawl through all files in the Drive
   main()
 
-  # TODO / NOTE TO SELF:
-  # Trying to simply read labels first to see how permissions work. 
+  '''
+    TODO / NEXT STEPS:
+    - Check if file already has tag
+    - Crawl through each file
+    - Add prompt for each file type
+    - Update README
+  '''
