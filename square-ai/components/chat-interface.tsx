@@ -14,36 +14,40 @@ import {
   ThumbsUp,
   ThumbsDown,
   Sparkles,
+  LoaderCircle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { FilePreview } from "./file-preview";
+import { Doc, Id } from "@/convex/_generated/dataModel";
 
-interface Message {
-  id: string;
-  role: "user" | "assistant";
-  content: string;
-}
-
-export function ChatInterface() {
+export function ChatInterface({
+  initialMessages,
+  chatId,
+}: {
+  initialMessages?: Doc<"messages">[];
+  chatId?: Id<"chats">;
+}) {
   const [input, setInput] = useState("");
   const [attachments, setAttachments] = useState<File[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const [messages, setMessages] = useState<Doc<"messages">[]>(
+    chatId && initialMessages ? initialMessages : [],
+  );
+  const [currentChatId] = useState(chatId);
 
-  // Sample messages - in a real app this would come from context or props
-  const messages: Message[] = [
-    {
-      id: "1",
-      role: "user",
-      content: "can you turn it into fahrenheit",
-    },
-    {
-      id: "2",
-      role: "assistant",
-      content:
-        "The current temperature in Phoenix, Arizona is approximately 102.74°F. Is there anything else you'd like to know or any other way I can assist you?",
-    },
-  ];
+  const addMessage = (message: Doc<"messages">) => {
+    setMessages((prev) => [...prev, message]);
+  };
+
+  // const updateMessage = (
+  //   messageId: string,
+  //   updates: Partial<Doc<"messages">>,
+  // ) => {
+  //   setMessages((prev) =>
+  //     prev.map((msg) => (msg._id === messageId ? { ...msg, ...updates } : msg)),
+  //   );
+  // };
 
   // Handles auto-resizing the textarea height based on content.
   const handleTextareaInput = (e: ChangeEvent<HTMLTextAreaElement>) => {
@@ -91,6 +95,49 @@ export function ChatInterface() {
 
       setInput("");
       setAttachments([]);
+
+      // FIXME: optimisitic update
+      // const newMsgObj: ExampleMessage = {
+      //   content: input,
+      //   id: "3322",
+      //   role: "user",
+      // };
+      // setMessages([...messages, newMsgObj]);
+
+      const tempMessageChatId = currentChatId
+        ? currentChatId
+        : (`temp-chat-id-${Date.now()}` as Id<"chats">);
+
+      const tempUserMessageId = `temp-msg-id-${Date.now()}` as Id<"messages">;
+      const tempUserMessage: Doc<"messages"> = {
+        _creationTime: Date.now(),
+        _id: tempUserMessageId,
+        chatId: tempMessageChatId,
+        content: input,
+        sender: "user",
+        isPending: false,
+        createdAt: Date.now(),
+      };
+
+      addMessage(tempUserMessage);
+
+      if (!currentChatId) {
+        window.history.pushState(null, "", `/chat/${tempMessageChatId}`);
+      }
+
+      const tempAiMessageId = `temp-msg-id-${Date.now()}` as Id<"messages">;
+      const tempAiMessage: Doc<"messages"> = {
+        _creationTime: Date.now(),
+        _id: tempAiMessageId,
+        chatId: tempMessageChatId,
+        content: "",
+        sender: "ai",
+        isPending: true,
+        createdAt: Date.now(),
+      };
+
+      addMessage(tempAiMessage);
+
       if (textareaRef.current) {
         textareaRef.current.style.height = "24px";
       }
@@ -113,8 +160,10 @@ export function ChatInterface() {
 
   return (
     <>
-      {isInputEmpty ? (
-        <main className="flex-grow flex flex-col items-center justify-center w-full">
+      <main className="flex-grow flex flex-col items-center justify-center w-full">
+        {messages.length !== 0 ? (
+          <ChatMessages messages={messages} />
+        ) : isInputEmpty ? (
           <div className="text-center">
             <p className="text-5xl font-bold text-gray-700 dark:text-gray-200">
               Ask away!
@@ -123,67 +172,11 @@ export function ChatInterface() {
               I&apos;m here to help you with anything.
             </p>
           </div>
-        </main>
-      ) : (
-        <main className="flex-grow flex flex-col w-full overflow-hidden">
-          <div className="flex-1 overflow-y-auto">
-            <div className="min-h-full flex flex-col justify-end p-4">
-              <div className="flex flex-col space-y-4 max-w-3xl mx-auto">
-                {messages.map((message) => (
-                  <div
-                    key={message.id}
-                    className={`flex ${message.role === "user" ? "justify-end" : "justify-start"}`}
-                  >
-                    {message.role === "assistant" && (
-                      <div className="flex-shrink-0 mr-3">
-                        <div className="w-8 h-8 rounded-full bg-primary flex items-center justify-center">
-                          <Sparkles className="w-4 h-4 text-primary-foreground" />
-                        </div>
-                      </div>
-                    )}
-                    <div className="flex flex-col max-w-[80%]">
-                      <div
-                        className={`rounded-2xl px-4 py-3 ${
-                          message.role === "user"
-                            ? "bg-primary text-primary-foreground ml-auto"
-                            : "bg-muted text-foreground"
-                        }`}
-                      >
-                        <p className="leading-relaxed">{message.content}</p>
-                      </div>
-                      {message.role === "assistant" && (
-                        <div className="flex items-center space-x-1 mt-2 ml-2">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-8 w-8 p-0"
-                          >
-                            <Copy className="w-4 h-4" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-8 w-8 p-0"
-                          >
-                            <ThumbsUp className="w-4 h-4" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-8 w-8 p-0"
-                          >
-                            <ThumbsDown className="w-4 h-4" />
-                          </Button>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        </main>
-      )}
+        ) : (
+          <div></div>
+        )}
+      </main>
+
       {/* Chat Input at the bottom */}
       <footer className="w-full flex-shrink-0 flex justify-center p-4">
         <div className="w-full max-w-3xl mx-auto">
@@ -260,5 +253,82 @@ export function ChatInterface() {
         </div>
       </footer>
     </>
+  );
+}
+
+// Use for later
+export function ChatMessages({ messages }: { messages: Doc<"messages">[] }) {
+  return (
+    <main className="flex-grow flex flex-col w-full overflow-hidden">
+      <div className="flex-1 overflow-y-auto">
+        <div className="min-h-full flex flex-col justify-end p-4">
+          <div className="flex flex-col space-y-4 max-w-3xl mx-auto w-full">
+            {messages.map((message) => (
+              <div key={message._id} className="w-full">
+                {message.sender === "user" ? (
+                  // User message - always aligned to the right
+                  <div className="flex justify-end">
+                    <div className="flex flex-col max-w-[80%]">
+                      <div className="rounded-2xl px-4 py-3 bg-primary text-primary-foreground">
+                        <p className="leading-relaxed">{message.content}</p>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  // AI message - always aligned to the left
+                  <div className="flex justify-start">
+                    <div className="flex-shrink-0 mr-3">
+                      <div className="w-8 h-8 rounded-full bg-primary flex items-center justify-center">
+                        {message.isPending ? (
+                          <LoaderCircle className="w-4 h-4 text-primary-foreground animate-spin" />
+                        ) : (
+                          <Sparkles className="w-4 h-4 text-primary-foreground" />
+                        )}
+                      </div>
+                    </div>
+                    <div className="flex flex-col max-w-[80%]">
+                      {message.isPending ? (
+                        <div className="mt-1 text-foreground">
+                          <p className="leading-relaxed">Just a second...</p>
+                        </div>
+                      ) : (
+                        <>
+                          <div className="rounded-2xl px-4 py-3 bg-muted text-foreground">
+                            <p className="leading-relaxed">{message.content}</p>
+                          </div>
+                          <div className="flex items-center space-x-1 mt-2 ml-2">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-8 w-8 p-0"
+                            >
+                              <Copy className="w-4 h-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-8 w-8 p-0"
+                            >
+                              <ThumbsUp className="w-4 h-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-8 w-8 p-0"
+                            >
+                              <ThumbsDown className="w-4 h-4" />
+                            </Button>
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </main>
   );
 }

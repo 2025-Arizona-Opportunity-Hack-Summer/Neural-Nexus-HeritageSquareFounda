@@ -23,6 +23,7 @@ export default defineSchema({
     chatId: v.id("chats"),
     sender: v.union(v.literal("user"), v.literal("ai")),
     content: v.string(),
+    isPending: v.boolean(),
     createdAt: v.number(),
   })
     .index("by_chat_id", ["chatId"])

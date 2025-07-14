@@ -3,7 +3,7 @@ import { WithSidebarLayout } from "@/components/with-sidebar";
 import { ModeToggle } from "@/components/theme-toggle";
 import { ChatInterface } from "@/components/chat-interface";
 
-export default async function ChatPage() {
+export default async function NewChatPage() {
   return (
     <WithSidebarLayout>
       <div className="flex h-screen">
