@@ -40,6 +40,7 @@ client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
 
 validTags = ['Machine Learning', 'Philosophy', 'Historic Image', 'Non-Historic Image']
 geminiCompatibleFileTypes = ['.png', '.jpg', '.jpeg', '.webp', '.pdf', '.doc', '.docx', '.txt'] # TODO UPDATE THIS LIST AS NEEDED
+imageFileTypes = ['.png', '.jpg', '.jpeg', '.webp'] # Used because image files will have their own prompt
 
 # First scope used to download drive files and update labels (tags)
 # Second scope used to create the label in the first place that will be associated with metadata
@@ -228,7 +229,11 @@ def downloadFileAndUpdateMetadata(fileId, mimeType, service):
     print(f"An error occurred: {error}")
     file = None
 
-# Crawls through the user's Google Drive and analyzes each file compatible with Gemini
+'''
+  Crawls through the user's Google Drive and analyzes each file compatible with Gemini.
+  Designed to look at all files in the Drive (ignoring ones that already have a tag),
+  so that it can be run again if it previously crashed or failed. 
+'''
 def crawlDrive(service):
   pageToken = None # Used to request the next step of 1000 files from the Drive API
   pageSize = 1000 # The number of files to retrieve (max allowed per request is 1000)
@@ -282,7 +287,127 @@ def crawlDrive(service):
   # Check if file already has tag
   # If no tag, or if tag is 'Uncategorized', then analyze it
   #downloadFileAndUpdateMetadata(fileId, service)
+
+
+'''
+  Checks if folder exists, returns True if it does.
+  Othwerise, creates the folder then returns True. 
+  Optionally, you can provide the parent folder ID to have nested folders.
+'''
+def checkIfFolderExists(service, folderName, parentFolderId=None):
+
+  try:
+
+    # Note that the Drive API treats folders as a file with the MIME type of "application/vnd.google-apps.folder"
+    query = f"name='{folderName}' and mimeType='application/vnd.google-apps.folder' and trashed=false"
+    if parentFolderId:
+      query += f" and '{parentFolderId}' in parents"
+
+    # Check if folder already exists:
+    results = service.files().list(
+            q=query,
+            spaces='drive',
+            fields='files(id, name)').execute()
+    items = results.get('files', [])
+
+    if items: # Folder exists
+      return True
+    else:
+      # Folder doesn't exist, so construct it
+
+      # Define metadata for the new folder
+      fileMetadata = {
+          "name": folderName,
+          "mimeType": "application/vnd.google-apps.folder",
+      }
+
+      # If parentFolderId is provided, set it as the parent in the metadata
+      if parentFolderId:
+        fileMetadata["parents"] = [parentFolderId]
+
+      # Create the folder
+      file = service.files().create(body=fileMetadata, fields="id").execute()
+      folderId = file.get("id")
+      
+      if folderId:
+        return True
+      else:
+        print("Problem with creating the folder (no ID returned)")
+        exit(1)
+    
+  except HttpError as error:
+    print(f"An error occurred: {error}")
+    exit(1)
+  except Exception as e:
+    print(f"An unexpected error occurred: {e}")
+    exit(1)
+
+'''
+  Organizes files based first on creation date Year/Month, then on Tag.
+  To avoid accidentally messing up the drive, this function will 
+  use a new folder called Organized-Drive-Files to store COPIES of the original files.
+'''
+def organizeFiles(service):
+  # Very similar to crawlDrive() in that it retrieves all file IDs from the Drive API
+
+  pageToken = None # Used to request the next step of 1000 files from the Drive API
+  pageSize = 1000 # The number of files to retrieve (max allowed per request is 1000)
   
+  '''
+    TODO
+    Check file's created year, create year folder if need be
+    Check file's created month (year is parent), create folder if need be
+    Check file's tag, create folder if need be (month is parent)
+  '''
+  
+  # Make sure base file where everything will be organized already exists (or create it if need be)
+  if organizedFilesFolderExists(service):
+    
+    try:
+      while True:
+        nextFilesBatch = [] # The next batch of files to preform tagging on
+        
+        # Get the json file containing the list of files from the Drive API
+        retrievedFilesJson = service.files().list(
+            pageSize=pageSize,
+            fields="nextPageToken, files(id, name, mimeType)",
+            pageToken=pageToken
+        ).execute()
+
+        fileItems = retrievedFilesJson.get('files', [])
+        if not fileItems:
+          print("No files retrieved from Drive API.")
+          return
+        
+        for item in fileItems:
+          nextFilesBatch.append( (item['id'], item['mimeType']) )
+
+        print(f"Successfully retrieved {len(nextFilesBatch)} files from Drive API.")
+        print("Now performing tagging on each file")
+
+        for file in nextFilesBatch:
+          fileId = file[0]
+          mimeType = file[1]
+
+          # CHECK IF FILE ALREADY HAS TAG
+          fileMetadata = service.files().get(
+            fileId=fileId, 
+            fields='properties'
+          ).execute()
+
+          if ('properties' in fileMetadata) and ('tag' in fileMetadata['properties']):
+            print("File already has tag, skipping analysis")
+          else:
+            # File doesn't have tag, so analyze it
+            print(f"Analyzing file ID: {fileId}, MIME Type: {mimeType}")
+            downloadFileAndUpdateMetadata(fileId, mimeType, service)
+
+    except HttpError as error:
+      print(f"An HTTP error occurred while retrieving files: {error}")
+      exit(1)
+    except Exception as e:
+      print(f"An error occurred while retrieving files: {e}")
+      exit(1)
 
 def main():
   service = authenticateDriveAPI()
