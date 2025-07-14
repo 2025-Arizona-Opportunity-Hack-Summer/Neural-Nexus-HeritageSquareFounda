@@ -10,5 +10,22 @@ export default defineSchema({
     imageUrl: v.string(),
     verified: v.boolean(),
     isAdmin: v.boolean(),
-  }).index("byClerkUserId", ["clerkUserId"]),
+  }).index("by_clerk_user_id", ["clerkUserId"]),
+  chats: defineTable({
+    userId: v.id("users"),
+    title: v.string(),
+    createdAt: v.number(),
+    lastMessageAt: v.number(),
+  })
+    .index("by_user_id", ["userId"])
+    .index("by_user_id_last_message_at", ["userId", "lastMessageAt"]),
+  messages: defineTable({
+    chatId: v.id("chats"),
+    sender: v.union(v.literal("user"), v.literal("ai")),
+    content: v.string(),
+    isPending: v.boolean(),
+    createdAt: v.number(),
+  })
+    .index("by_chat_id", ["chatId"])
+    .index("by_chat_id_created_at", ["chatId", "createdAt"]),
 });

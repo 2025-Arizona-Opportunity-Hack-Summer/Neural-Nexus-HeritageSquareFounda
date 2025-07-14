@@ -1,6 +1,11 @@
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/app-sidebar";
 import { cookies } from "next/headers";
+import { currentUser } from "@clerk/nextjs/server";
+import { redirect } from "next/navigation";
+import { getAuthToken } from "@/lib/auth";
+import { fetchQuery } from "convex/nextjs";
+import { api } from "@/convex/_generated/api";
 
 export async function WithSidebarLayout({
   children,
@@ -16,9 +21,18 @@ export async function WithSidebarLayout({
 
   if (sidebarState) defaultOpen = sidebarState === "true";
 
+  const user = await currentUser();
+  if (!user) redirect("/sign-in");
+
+  const token = await getAuthToken();
+  const dbUser = await fetchQuery(api.users.current, {}, { token });
+  if (!dbUser) redirect("/sign-in");
+
+  const allChats = await fetchQuery(api.chats.getAllCurrentUser, {}, { token });
+
   return (
     <SidebarProvider defaultOpen={defaultOpen} defaultWidth={sidebarWidth}>
-      <AppSidebar />
+      <AppSidebar user={dbUser} chats={allChats} />
       <SidebarInset>{children}</SidebarInset>
     </SidebarProvider>
   );

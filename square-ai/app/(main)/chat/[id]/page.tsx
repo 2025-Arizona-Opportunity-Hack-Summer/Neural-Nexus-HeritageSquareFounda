@@ -2,8 +2,26 @@ import { SidebarTrigger } from "@/components/app-sidebar";
 import { WithSidebarLayout } from "@/components/with-sidebar";
 import { ModeToggle } from "@/components/theme-toggle";
 import { ChatInterface } from "@/components/chat-interface";
+import { fetchQuery } from "convex/nextjs";
+import { api } from "@/convex/_generated/api";
+import { Id } from "@/convex/_generated/dataModel";
+import { getAuthToken } from "@/lib/auth";
+import { redirect } from "next/navigation";
 
-export default async function NewChatPage() {
+export default async function IndividualChatPage({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
+  const token = await getAuthToken();
+  const { id } = await params;
+  const messages = await fetchQuery(
+    api.messages.getAllByChatId,
+    { chatId: id as Id<"chats"> },
+    { token },
+  );
+  if (!messages) redirect("/chat");
+
   return (
     <WithSidebarLayout>
       <div className="flex h-screen">
@@ -18,7 +36,10 @@ export default async function NewChatPage() {
             </div>
           </header>
 
-          <ChatInterface />
+          <ChatInterface
+            initialMessages={messages}
+            chatId={id as Id<"chats">}
+          />
         </div>
       </div>
     </WithSidebarLayout>

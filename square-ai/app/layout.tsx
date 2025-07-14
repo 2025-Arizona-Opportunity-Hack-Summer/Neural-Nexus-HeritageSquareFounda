@@ -36,7 +36,6 @@ export default function RootLayout({
               disableTransitionOnChange
             >
               {children}
-
               <GlobalCommandDialog />
             </ThemeProvider>
           </ConvexClientProvider>

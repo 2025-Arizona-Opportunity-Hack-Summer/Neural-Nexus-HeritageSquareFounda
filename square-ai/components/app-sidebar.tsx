@@ -1,4 +1,4 @@
-import * as React from "react";
+"use client";
 
 import {
   Sidebar,
@@ -11,8 +11,6 @@ import {
   SidebarMenuItem,
   SidebarRail,
   SidebarTrigger as DefaultSidebarTrigger,
-  SidebarInset,
-  SidebarProvider,
   SidebarFooter,
 } from "@/components/ui/sidebar";
 import { Button } from "@/components/ui/button";
@@ -22,35 +20,23 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { currentUser } from "@clerk/nextjs/server";
 import { NavUser } from "./nav-user";
-import { redirect } from "next/navigation";
-import { fetchQuery } from "convex/nextjs";
-import { api } from "@/convex/_generated/api";
-import { getAuthToken } from "@/lib/auth";
+import { Doc } from "@/convex/_generated/dataModel";
+import { useRouter } from "next/navigation";
+import Link from "next/link";
 
-const newData = {
-  chats: [
-    { title: "Ancient civilization interest", url: "#" },
-    { title: "Modern interests", url: "#" },
-    {
-      title:
-        "Ancient civilization interestinterestinterestinterestinterestinterest",
-      url: "#",
-    },
-    { title: "Ancient civilization interests", url: "#" },
-  ],
+type SidebarProps = {
+  user: Doc<"users">;
+  chats: Doc<"chats">[];
 };
 
-export async function AppSidebar({
+export function AppSidebar({
+  user,
+  chats,
   ...props
-}: React.ComponentProps<typeof Sidebar>) {
-  const user = await currentUser();
-  if (!user) redirect("/sign-in");
-
-  const token = await getAuthToken();
-  const dbUser = await fetchQuery(api.users.current, {}, { token });
-  if (!dbUser) redirect("/sign-in");
+}: React.ComponentProps<typeof Sidebar> & SidebarProps) {
+  const router = useRouter();
+  // TODO: add delete chat here
 
   return (
     <Sidebar {...props}>
@@ -69,7 +55,13 @@ export async function AppSidebar({
           </SidebarMenuItem>
 
           <SidebarMenuItem>
-            <Button variant="default" className="cursor-pointer w-full">
+            <Button
+              variant="default"
+              className="cursor-pointer w-full"
+              // disabled={loading}
+              onClick={() => router.push("/chat")}
+            >
+              {/* {loading && <LoaderCircle className="size-4 animate-spin" />} */}
               <span className="text-sm">New Chat</span>
             </Button>
           </SidebarMenuItem>
@@ -80,16 +72,16 @@ export async function AppSidebar({
         <SidebarGroup>
           <SidebarGroupLabel>Chats</SidebarGroupLabel>
           <SidebarMenu>
-            {newData.chats.map((item) => (
-              <SidebarMenuItem key={item.title}>
+            {chats.map((chat) => (
+              <SidebarMenuItem key={chat.title}>
                 <SidebarMenuButton asChild>
                   <div className="group/item flex w-full items-center justify-start overflow-hidden cursor-pointer">
-                    <a
-                      href={item.url}
+                    <Link
+                      href={`/chat/${chat._id}`}
                       className="truncate duration-200 flex-grow text-primary-foreground"
                     >
-                      {item.title}
-                    </a>
+                      {chat.title}
+                    </Link>
 
                     <Pin className="size-5 flex-shrink-0 opacity-0 translate-x-5 group-hover/item:opacity-100 group-hover/item:translate-x-0 transition-all duration-300 ease-in-out cursor-pointer hover:text-black dark:hover:text-gray-300" />
 
@@ -106,9 +98,9 @@ export async function AppSidebar({
         <NavUser
           user={{
             name: `${user.firstName} ${user.lastName}`,
-            email: user.emailAddresses[0]!.emailAddress,
+            email: user.email,
             avatar: user.imageUrl,
-            isAdmin: dbUser.isAdmin,
+            isAdmin: user.isAdmin,
           }}
         />
       </SidebarFooter>
@@ -128,14 +120,5 @@ export function SidebarTrigger() {
         <p>⌘B</p>
       </TooltipContent>
     </Tooltip>
-  );
-}
-
-export function WithSidebarLayout({ children }: { children: React.ReactNode }) {
-  return (
-    <SidebarProvider>
-      <AppSidebar />
-      <SidebarInset>{children}</SidebarInset>
-    </SidebarProvider>
   );
 }

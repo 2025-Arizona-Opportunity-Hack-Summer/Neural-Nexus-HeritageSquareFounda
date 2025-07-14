@@ -1,0 +1,508 @@
+"use client";
+
+import React, {
+  useRef,
+  ChangeEvent,
+  FormEvent,
+  KeyboardEvent,
+  useState,
+  useEffect,
+  useTransition,
+} from "react";
+import {
+  Paperclip,
+  ArrowUp,
+  Copy,
+  ThumbsUp,
+  ThumbsDown,
+  Sparkles,
+} from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { FilePreview } from "./file-preview";
+import { useRouter, useParams } from "next/navigation";
+
+interface Attachment {
+  name: string;
+  type: string;
+  url?: string;
+}
+
+interface Message {
+  id: string;
+  role: "user" | "assistant";
+  content: string;
+  attachments?: Attachment[];
+  isPending?: boolean;
+  error?: boolean;
+  createdAt: Date;
+}
+
+export function ChatInterface() {
+  // Input state
+  const [input, setInput] = useState("");
+  const [attachments, setAttachments] = useState<File[]>([]);
+  
+  // Chat state
+  const [currentChatId, setCurrentChatId] = useState<string | null>(null);
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  
+  // Hooks
+  const router = useRouter();
+  const params = useParams();
+  const [isPending, startTransition] = useTransition();
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  
+  const chatId = params?.chatId as string;
+
+  // Load existing chat messages when chatId changes
+  useEffect(() => {
+    if (chatId && chatId !== currentChatId && !chatId.startsWith('temp-')) {
+      loadChatMessages(chatId);
+    }
+  }, [chatId, currentChatId]);
+
+  const loadChatMessages = async (chatId: string) => {
+    try {
+      const { getChatMessages } = await import("@/app/actions/chat");
+      const existingMessages = await getChatMessages(chatId);
+      
+      // Transform database messages to match Message interface
+      const formattedMessages = existingMessages.map((msg: any) => ({
+        id: msg.id,
+        content: msg.content,
+        role: msg.role,
+        attachments: msg.attachments || [],
+        isPending: false,
+        error: false,
+        createdAt: new Date(msg.createdAt)
+      }));
+
+      setMessages(formattedMessages);
+      setCurrentChatId(chatId);
+    } catch (error) {
+      console.error('Failed to load chat messages:', error);
+    }
+  };
+
+  // Message management functions
+  const addMessage = (message: Message) => {
+    setMessages(prev => [...prev, message]);
+  };
+
+  const updateMessage = (messageId: string, updates: Partial<Message>) => {
+    setMessages(prev => prev.map(msg => 
+      msg.id === messageId 
+        ? { ...msg, ...updates }
+        : msg
+    ));
+  };
+
+  // Handles auto-resizing the textarea height based on content.
+  const handleTextareaInput = (e: ChangeEvent<HTMLTextAreaElement>) => {
+    const textarea = e.target;
+    textarea.style.height = "auto";
+    textarea.style.height = `${Math.min(textarea.scrollHeight, 200)}px`;
+  };
+
+  // Handles file selection.
+  const handleFileChange = (e: ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files ? Array.from(e.target.files) : [];
+    if (files.length === 0) return;
+
+    const newAttachments = [...attachments, ...files].slice(0, 5);
+    setAttachments(newAttachments);
+
+    if (e.target) e.target.value = "";
+  };
+
+  // Triggers the hidden file input.
+  const triggerFileSelect = () => {
+    fileInputRef.current?.click();
+  };
+
+  // Removes a file from the attachments list.
+  const removeAttachment = (indexToRemove: number) => {
+    setAttachments(attachments.filter((_, index) => index !== indexToRemove));
+  };
+
+  // Handles the form submission with server actions.
+  const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    if ((!input.trim() && attachments.length === 0) || isLoading) return;
+
+    const messageText = input.trim();
+    const messageAttachments = [...attachments];
+    
+    // Clear input immediately for instant feedback
+    setInput("");
+    setAttachments([]);
+    if (textareaRef.current) {
+      textareaRef.current.style.height = "24px";
+    }
+
+    // Generate temporary IDs for optimistic updates
+    const tempUserMessageId = `temp-user-${Date.now()}`;
+    const tempAiMessageId = `temp-ai-${Date.now() + 1}`;
+    
+    // 1. Add user message optimistically
+    const optimisticUserMessage: Message = {
+      id: tempUserMessageId,
+      content: messageText,
+      role: 'user',
+      attachments: messageAttachments.map(file => ({
+        name: file.name,
+        type: file.type,
+        url: URL.createObjectURL(file) // Temporary preview URL
+      })),
+      isPending: true,
+      createdAt: new Date()
+    };
+    
+    addMessage(optimisticUserMessage);
+    setIsLoading(true);
+
+    // 2. Handle navigation for new chat
+    let chatId = currentChatId;
+    if (!chatId) {
+      // Navigate immediately with temporary ID
+      const tempChatId = `temp-${Date.now()}`;
+      router.push(`/chat/${tempChatId}`, { shallow: true });
+    }
+
+    // 3. Add AI message placeholder
+    const optimisticAiMessage: Message = {
+      id: tempAiMessageId,
+      content: '',
+      role: 'assistant',
+      attachments: [],
+      isPending: true,
+      createdAt: new Date()
+    };
+    addMessage(optimisticAiMessage);
+
+    try {
+      // 4. Create FormData for server action
+      const formData = new FormData();
+      formData.append("message", messageText);
+      formData.append("chatId", chatId || "");
+      messageAttachments.forEach((file) => {
+        formData.append("attachments", file);
+      });
+
+      // 5. Call server action in transition
+      startTransition(async () => {
+        try {
+          // Import and call your server action
+          const { createChatWithMessage } = await import("@/app/actions/chat");
+          
+          const result = await createChatWithMessage(formData);
+          
+          // Update chat ID if this was a new chat
+          if (result.chatId && !currentChatId) {
+            setCurrentChatId(result.chatId);
+            router.replace(`/chat/${result.chatId}`, { shallow: true });
+            chatId = result.chatId;
+          }
+
+          // Update user message with real data
+          updateMessage(tempUserMessageId, {
+            id: result.userMessage.id,
+            isPending: false,
+            attachments: result.userMessage.attachments || []
+          });
+
+          // 6. Stream AI response
+          if (result.aiResponse) {
+            await streamAIResponse(result.aiResponse, tempAiMessageId, chatId);
+          }
+
+        } catch (error) {
+          console.error('Failed to send message:', error);
+          
+          // Handle error - mark messages as failed
+          updateMessage(tempUserMessageId, {
+            isPending: false,
+            error: true
+          });
+          updateMessage(tempAiMessageId, {
+            content: 'Sorry, I encountered an error. Please try again.',
+            isPending: false,
+            error: true
+          });
+        } finally {
+          setIsLoading(false);
+        }
+      });
+
+    } catch (error) {
+      console.error('Error in message submission:', error);
+      setIsLoading(false);
+    }
+  };
+
+  const streamAIResponse = async (response: Response, messageId: string, chatId: string) => {
+    try {
+      const reader = response.body?.getReader();
+      if (!reader) return;
+
+      const decoder = new TextDecoder();
+      let fullText = '';
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        const chunk = decoder.decode(value);
+        fullText += chunk;
+
+        // Update AI message incrementally
+        updateMessage(messageId, {
+          content: fullText,
+          isPending: false
+        });
+      }
+
+      // Save final AI response to database
+      if (fullText && chatId) {
+        const { saveAIMessage } = await import("@/app/actions/chat");
+        const savedMessage = await saveAIMessage(chatId, fullText);
+        
+        // Update with real message ID
+        updateMessage(messageId, {
+          id: savedMessage.id,
+          content: fullText,
+          isPending: false
+        });
+      }
+
+    } catch (error) {
+      console.error('Error streaming AI response:', error);
+      updateMessage(messageId, {
+        content: 'Error receiving response.',
+        isPending: false,
+        error: true
+      });
+    }
+  };
+
+  const handleKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      if (!isSubmitDisabled && e.currentTarget.form) {
+        e.currentTarget.form.requestSubmit();
+      }
+    }
+  };
+
+  // Action handlers for message interactions
+  const handleCopyMessage = (content: string) => {
+    navigator.clipboard.writeText(content);
+    // You could add a toast notification here
+  };
+
+  const handleThumbsUp = (messageId: string) => {
+    // Implement feedback logic
+    console.log('Thumbs up for message:', messageId);
+  };
+
+  const handleThumbsDown = (messageId: string) => {
+    // Implement feedback logic
+    console.log('Thumbs down for message:', messageId);
+  };
+
+  const isSubmitDisabled = (!input.trim() && attachments.length === 0) || isLoading;
+  const isInputEmpty = input === "" && attachments.length === 0;
+  const hasMessages = messages.length > 0;
+
+  return (
+    <>
+      {!hasMessages && isInputEmpty ? (
+        <main className="flex-grow flex flex-col items-center justify-center w-full">
+          <div className="text-center">
+            <p className="text-5xl font-bold text-gray-700 dark:text-gray-200">
+              Ask away!
+            </p>
+            <p className="mt-2 text-gray-400">
+              I&apos;m here to help you with anything.
+            </p>
+          </div>
+        </main>
+      ) : (
+        <main className="flex-grow flex flex-col w-full overflow-hidden">
+          <div className="flex-1 overflow-y-auto">
+            <div className="min-h-full flex flex-col justify-end p-4">
+              <div className="flex flex-col space-y-4 max-w-3xl mx-auto">
+                {messages.map((message) => (
+                  <div
+                    key={message.id}
+                    className={`flex ${message.role === "user" ? "justify-end" : "justify-start"}`}
+                  >
+                    {message.role === "assistant" && (
+                      <div className="flex-shrink-0 mr-3">
+                        <div className="w-8 h-8 rounded-full bg-primary flex items-center justify-center">
+                          <Sparkles className="w-4 h-4 text-primary-foreground" />
+                        </div>
+                      </div>
+                    )}
+                    <div className="flex flex-col max-w-[80%]">
+                      <div
+                        className={`rounded-2xl px-4 py-3 relative ${
+                          message.role === "user"
+                            ? "bg-primary text-primary-foreground ml-auto"
+                            : "bg-muted text-foreground"
+                        } ${message.isPending ? "opacity-70" : ""} ${
+                          message.error ? "border-2 border-red-500" : ""
+                        }`}
+                      >
+                        {/* Show attachments for user messages */}
+                        {message.role === "user" && message.attachments && message.attachments.length > 0 && (
+                          <div className="mb-2 flex flex-wrap gap-2">
+                            {message.attachments.map((attachment, index) => (
+                              <div key={index} className="text-xs bg-white/20 rounded px-2 py-1">
+                                {attachment.name}
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                        
+                        <p className="leading-relaxed">
+                          {message.content}
+                          {message.isPending && message.role === "assistant" && (
+                            <span className="inline-block w-2 h-4 bg-current opacity-50 animate-pulse ml-1" />
+                          )}
+                        </p>
+                        
+                        {message.isPending && (
+                          <div className="absolute top-1 right-1">
+                            <div className="w-2 h-2 bg-current opacity-50 rounded-full animate-pulse" />
+                          </div>
+                        )}
+                      </div>
+                      
+                      {message.role === "assistant" && !message.isPending && (
+                        <div className="flex items-center space-x-1 mt-2 ml-2">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-8 w-8 p-0"
+                            onClick={() => handleCopyMessage(message.content)}
+                          >
+                            <Copy className="w-4 h-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-8 w-8 p-0"
+                            onClick={() => handleThumbsUp(message.id)}
+                          >
+                            <ThumbsUp className="w-4 h-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-8 w-8 p-0"
+                            onClick={() => handleThumbsDown(message.id)}
+                          >
+                            <ThumbsDown className="w-4 h-4" />
+                          </Button>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </main>
+      )}
+      
+      {/* Chat Input at the bottom */}
+      <footer className="w-full flex-shrink-0 flex justify-center p-4">
+        <div className="w-full max-w-3xl mx-auto">
+          <form
+            onSubmit={handleSubmit}
+            className="bg-card/90 backdrop-blur-sm rounded-3xl border border-border shadow-lg p-4 transition-all duration-300 hover:shadow-xl"
+          >
+            <div className="space-y-3">
+              {attachments.length > 0 && (
+                <div className="flex items-center gap-3 overflow-x-auto pb-2">
+                  {attachments.map((file, index) => (
+                    <FilePreview
+                      key={`${file.name}-${index}`}
+                      file={file}
+                      onRemove={() => removeAttachment(index)}
+                    />
+                  ))}
+                </div>
+              )}
+
+              <div className="w-full">
+                <textarea
+                  ref={textareaRef}
+                  value={input}
+                  onChange={(e) => setInput(e.target.value)}
+                  onKeyDown={handleKeyDown}
+                  placeholder={isLoading ? "Thinking..." : "Ask anything..."}
+                  rows={1}
+                  disabled={isLoading}
+                  className="w-full bg-transparent text-foreground placeholder-muted-foreground text-base focus:outline-none focus:ring-0 border-0 p-0 resize-none overflow-y-auto font-sans disabled:opacity-50"
+                  style={{ minHeight: "24px", height: "24px" }}
+                  onInput={handleTextareaInput}
+                />
+              </div>
+
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <input
+                    type="file"
+                    multiple
+                    ref={fileInputRef}
+                    onChange={handleFileChange}
+                    className="hidden"
+                    accept="image/*,application/pdf,.doc,.docx,.xls,.xlsx,.txt"
+                    disabled={isLoading}
+                  />
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    onClick={triggerFileSelect}
+                    disabled={isLoading}
+                    className="w-8 h-8 cursor-pointer rounded-lg text-muted-foreground hover:bg-accent transition-all duration-200 flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed"
+                    aria-label="Add attachment"
+                  >
+                    <Paperclip className="w-4 h-4" />
+                  </Button>
+                </div>
+
+                <Button
+                  type="submit"
+                  variant="default"
+                  size="icon"
+                  className={`w-8 h-8 rounded-lg transition-all duration-200 flex items-center justify-center ${
+                    !isSubmitDisabled
+                      ? "bg-primary hover:bg-primary/90 text-primary-foreground cursor-pointer shadow-md hover:shadow-lg"
+                      : "bg-muted text-muted-foreground cursor-not-allowed"
+                  }`}
+                  disabled={isSubmitDisabled}
+                  aria-label="Send message"
+                >
+                  <ArrowUp className={`w-4 h-4 ${isLoading ? 'animate-pulse' : ''}`} />
+                </Button>
+              </div>
+            </div>
+          </form>
+        </div>
+      </footer>
+      
+      {/* Loading indicator */}
+      {isLoading && (
+        <div className="fixed top-4 right-4 bg-primary text-primary-foreground px-3 py-1 rounded-full text-sm z-50">
+          Thinking...
+        </div>
+      )}
+    </>
+  );
+}
