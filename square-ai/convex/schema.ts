@@ -29,3 +29,4 @@ export default defineSchema({
     .index("by_chat_id", ["chatId"])
     .index("by_chat_id_created_at", ["chatId", "createdAt"]),
 });
+// jd7c4e2st0wkk9swyv5kh9wktn7k1r44
