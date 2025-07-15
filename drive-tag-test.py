@@ -30,6 +30,7 @@ from google_auth_oauthlib.flow import InstalledAppFlow
 from google import genai
 import tempfile
 import mimetypes
+from datetime import datetime
 
 import os
 from dotenv import load_dotenv
@@ -111,6 +112,10 @@ fileAndPromptDict = {
     ".doc": documentAnalyzerPrompt,
     ".docx": documentAnalyzerPrompt
 }
+
+# All files, once tagged, will be COPIED into a folder by this name.
+# Copied and not moved in case something goes wrong.
+baseOrganizedFilesFolderName = "Organized-Drive-Files"
 
 # Provides Gemini with a file and has it return a tag
 def promptGemini(temp_file_path, promptMessage):
@@ -330,7 +335,7 @@ def checkIfFolderExists(service, folderName, parentFolderId=None):
       folderId = file.get("id")
       
       if folderId:
-        return True
+        return folderId
       else:
         print("Problem with creating the folder (no ID returned)")
         exit(1)
@@ -342,6 +347,72 @@ def checkIfFolderExists(service, folderName, parentFolderId=None):
     print(f"An unexpected error occurred: {e}")
     exit(1)
 
+
+'''
+  Copies (NOT moves) a file to a destination folder.
+  I only copy and don't move incase something goes wrong.
+'''
+def copyFileToFolder(service, fileId, destinationFolderId):
+  try:
+      # Step 1: Get the original file's metadata, including its name and properties.
+      # We need 'name' to give the copied file the same name, and 'properties'
+      # to transfer the custom 'tag'.
+      originalFileMetadata = service.files().get(
+          fileId=fileId,
+          fields='name, properties'
+      ).execute()
+
+      originalFileName = originalFileMetadata.get('name')
+      originalProperties = originalFileMetadata.get('properties', {})
+
+      # Extract the 'tag' value if it exists
+      tagValue = originalProperties.get('tag')
+
+      print(f"Attempting to copy file '{originalFileName}' (ID: {fileId})")
+      if tagValue:
+          print(f"  Original file has 'tag': '{tagValue}'")
+      else:
+          print("  Original file does not have a 'tag' property.")
+
+      # Step 2: Prepare the metadata for the copied file.
+      # This includes the name, the parent folder, and the properties.
+      copiedFileMetadata = {
+          'name': originalFileName,
+          'parents': [destinationFolderId]
+      }
+
+      # If the original file had a 'tag', include it in the new file's properties.
+      # We create a new dictionary for properties to ensure it's clean.
+      if tagValue:
+          copiedFileMetadata['properties'] = {'tag': tagValue}
+      else:
+          # If no tag, ensure properties are not explicitly set or are empty
+          # to avoid transferring other unwanted properties if they existed.
+          copiedFileMetadata['properties'] = {}
+
+
+      # Step 3: Execute the copy operation.
+      # pylint: disable=maybe-no-member
+      copiedFile = service.files().copy(
+          fileId=fileId,
+          body=copiedFileMetadata,
+          fields='id, name, parents, properties' # Request properties back to confirm
+      ).execute()
+
+      copiedFileId = copiedFile.get('id')
+      if copiedFileId:
+        return copiedFileId
+      else:
+        print("Problem with copying the file (no ID returned)")
+        return None
+
+  except HttpError as error:
+      print(f"An API error occurred during file copy: {error}")
+      return None
+  except Exception as e:
+      print(f"An unexpected error occurred during file copy: {e}")
+      return None
+
 '''
   Organizes files based first on creation date Year/Month, then on Tag.
   To avoid accidentally messing up the drive, this function will 
@@ -350,19 +421,22 @@ def checkIfFolderExists(service, folderName, parentFolderId=None):
 def organizeFiles(service):
   # Very similar to crawlDrive() in that it retrieves all file IDs from the Drive API
 
-  pageToken = None # Used to request the next step of 1000 files from the Drive API
-  pageSize = 1000 # The number of files to retrieve (max allowed per request is 1000)
+  # Ensure the base folder where all organization will take place exists
+  baseFolderId = checkIfFolderExists(service, baseOrganizedFilesFolderName)
+
+  if baseFolderId:
+    print(f"Base folder '{baseOrganizedFilesFolderName}' exists, proceeding with organization.")
+
+    pageToken = None # Used to request the next step of 1000 files from the Drive API
+    pageSize = 1000 # The number of files to retrieve (max allowed per request is 1000)
   
-  '''
-    TODO
-    Check file's created year, create year folder if need be
-    Check file's created month (year is parent), create folder if need be
-    Check file's tag, create folder if need be (month is parent)
-  '''
-  
-  # Make sure base file where everything will be organized already exists (or create it if need be)
-  if organizedFilesFolderExists(service):
-    
+    # This next part is somewhat ugly, but does the following:
+    # 1 - Iteratively retrieves each file from the Drive 
+    # 2 - Extracts the year and month from the file's creation date
+    # 3 - Checks if the year and month folders exist, creating them if they don't
+    # 4 - Checks if the tag folder exists, creating it if it doesn't
+    # 5 - Copies the file to the tag folder, preserving its name and properties
+    # Note that if a file has an issue being copied, it simply moves on to the next file. 
     try:
       while True:
         nextFilesBatch = [] # The next batch of files to preform tagging on
@@ -370,7 +444,7 @@ def organizeFiles(service):
         # Get the json file containing the list of files from the Drive API
         retrievedFilesJson = service.files().list(
             pageSize=pageSize,
-            fields="nextPageToken, files(id, name, mimeType)",
+            fields="nextPageToken, files(id, name, createdTime, properties)",
             pageToken=pageToken
         ).execute()
 
@@ -379,29 +453,60 @@ def organizeFiles(service):
           print("No files retrieved from Drive API.")
           return
         
+        # Now process each retrieved file
         for item in fileItems:
-          nextFilesBatch.append( (item['id'], item['mimeType']) )
+          fileId = item.get('id')
+          fileName = item.get('name')
+          createdTimeStr = item.get('createdTime')
+          properties = item.get('properties', {})
 
-        print(f"Successfully retrieved {len(nextFilesBatch)} files from Drive API.")
-        print("Now performing tagging on each file")
+          # Extract the year and month from the createdTime
+          # This part is a bit ugly because createdTime is a RFC 3339 formatted string
+          yearCreated = None
+          monthCreated = None
 
-        for file in nextFilesBatch:
-          fileId = file[0]
-          mimeType = file[1]
+          if createdTimeStr:
+            if createdTimeStr.endswith('Z'):
+              createdTimeStr = createdTimeStr[:-1]
+            if '.' in createdTimeStr:
+                createdTimeStr = createdTimeStr.split('.')[0]
 
-          # CHECK IF FILE ALREADY HAS TAG
-          fileMetadata = service.files().get(
-            fileId=fileId, 
-            fields='properties'
-          ).execute()
+            created_dt = datetime.fromisoformat(createdTimeStr)
+            yearCreated = created_dt.year
+            monthCreated = created_dt.month
 
-          if ('properties' in fileMetadata) and ('tag' in fileMetadata['properties']):
-            print("File already has tag, skipping analysis")
-          else:
-            # File doesn't have tag, so analyze it
-            print(f"Analyzing file ID: {fileId}, MIME Type: {mimeType}")
-            downloadFileAndUpdateMetadata(fileId, mimeType, service)
+          if not yearCreated or not monthCreated:
+              print(f"Could not extract year or month from createdTime: {createdTimeStr}")
+              exit(1)  
 
+          # Reminder that the series of folders these files will be stored in is:
+          # Organized-Drive-Files/Year/Month/Tag/FileName
+          
+          yearFolderId = checkIfFolderExists(service, str(yearCreated), baseFolderId)
+
+          if yearFolderId:
+            print(f"Year folder for {yearCreated} exists, proceeding with month organization.")
+            
+            monthFolderId = checkIfFolderExists(service, str(monthCreated), yearFolderId)
+            if monthFolderId:
+              print(f"Month folder for {monthCreated} exists, proceeding with tag organization.")
+              
+              # Now check the tag
+              tagValue = properties.get('tag', 'Uncategorized') # Default to 'Uncategorized' if no tag exists     
+
+              tagFolderId = checkIfFolderExists(service, tagValue, monthFolderId)
+
+              if tagFolderId:
+                print(f"Tag folder for '{tagValue}' exists, proceeding with file copy.")
+                copiedFileId = copyFileToFolder(service, fileId, tagFolderId)
+
+                if copiedFileId:
+                  print(f"Successfully copied file to tag folder '{tagValue}' (ID: {copiedFileId})")
+                else:
+                  print(f"Failed to copy file to tag folder '{tagValue}'")
+              else:
+                print(f"Problem with creating tag folder '{tagValue}'. File {fileId} was NOT copied to the organized folder.")
+                print("Continuing with next file...")
     except HttpError as error:
       print(f"An HTTP error occurred while retrieving files: {error}")
       exit(1)
