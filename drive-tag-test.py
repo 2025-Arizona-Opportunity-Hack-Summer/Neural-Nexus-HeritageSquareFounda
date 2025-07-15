@@ -40,7 +40,8 @@ load_dotenv()
 client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
 
 validTags = ['Machine Learning', 'Philosophy', 'Historic Image', 'Non-Historic Image']
-geminiCompatibleFileTypes = ['.png', '.jpg', '.jpeg', '.webp', '.pdf', '.doc', '.docx', '.txt'] # TODO UPDATE THIS LIST AS NEEDED
+# removed .webp because mimetypes doesn't recognize it
+geminiCompatibleFileTypes = ['.png', '.jpg', '.jpeg', '.pdf', '.doc', '.docx', '.txt'] # TODO UPDATE THIS LIST AS NEEDED
 imageFileTypes = ['.png', '.jpg', '.jpeg', '.webp'] # Used because image files will have their own prompt
 
 # First scope used to download drive files and update labels (tags)
@@ -119,7 +120,41 @@ baseOrganizedFilesFolderName = "Organized-Drive-Files"
 
 # Provides Gemini with a file and has it return a tag
 def promptGemini(temp_file_path, promptMessage):
+  try:
+      print(f"Attempting to upload file to Gemini: {temp_file_path}") # Add this line
+      myfile = client.files.upload(file=temp_file_path) # This is the likely line causing the HttpError
+      print(f"Successfully uploaded file to Gemini: {myfile.name}") # This line won't print if error occurs above
 
+      response = client.models.generate_content(
+          model="gemini-2.0-flash-lite", contents=[
+              promptMessage,
+              myfile 
+          ])
+
+      cleanedResponse = response.text.strip()
+
+      if cleanedResponse in validTags:
+          print(f"Gemini returned valid tag: {cleanedResponse}")
+          return cleanedResponse
+      else:
+          print(f"Invalid response from Gemini: {cleanedResponse}.\nValid tags are: {validTags}")
+          print("Returning tag as 'Uncategorized'")
+          return "Uncategorized"
+          
+  except HttpError as error:
+      print(f"An HttpError occurred during Gemini file upload or content generation: {error}")
+      print(f"Gemini API Error Status: {error.resp.status}")
+      print(f"Gemini API Error Reason: {error.resp.reason}")
+      if error.content:
+          print(f"Gemini API Error Content: {error.content.decode()}")
+      # Re-raise the error or handle it as appropriate for your main downloadFileAndUpdateMetadata
+      raise # Re-raise to let the outer try-except handle it, providing more context.
+  except Exception as e:
+      print(f"An unexpected error occurred in promptGemini: {e}")
+      raise # Re-raise for outer handling
+
+
+  '''
   myfile = client.files.upload(file=temp_file_path)
 
   response = client.models.generate_content(
@@ -137,6 +172,7 @@ def promptGemini(temp_file_path, promptMessage):
     print(f"Invalid response from Gemini: {cleanedResponse}.\nValid tags are: {validTags}")
     print("Returning tag as 'Uncategorized'")
     return "Uncategorized"
+    '''
 
 # Sets up authentication needed to access Drive API
 # Returns the service object for the Drive API
@@ -200,7 +236,7 @@ def downloadFileAndUpdateMetadata(fileId, mimeType, service):
   try:
     # First, check if the file type is compatible with Gemini
     # If it isn't, set the tag is 'Uncategorized'
-    fileType = mimetypes.guess_extension(mimeType) # use the mimetypes library to extract file type
+    fileType = mimetypes.guess_extension(mimeType, strict=False) # use the mimetypes library to extract file type
     
     if (fileType is None) or (fileType not in geminiCompatibleFileTypes):
       print(f"File type {fileType} is not compatible with Gemini")
@@ -230,7 +266,7 @@ def downloadFileAndUpdateMetadata(fileId, mimeType, service):
 
     updateTagMetadata(fileId, tagValue, service)
     
-  except HttpError as error:
+  except Exception as error:
     print(f"An error occurred: {error}")
     file = None
 
@@ -245,7 +281,7 @@ def crawlDrive(service):
   
   try:
     while True:
-      nextFilesBatch = [] # The next batch of files to preform tagging on
+      nextFilesBatch = [] # The next batch of files to perform tagging on
       
       # Get the json file containing the list of files from the Drive API
       retrievedFilesJson = service.files().list(
@@ -253,6 +289,8 @@ def crawlDrive(service):
           fields="nextPageToken, files(id, name, mimeType)",
           pageToken=pageToken
       ).execute()
+
+      
 
       fileItems = retrievedFilesJson.get('files', [])
       if not fileItems:
@@ -281,6 +319,14 @@ def crawlDrive(service):
           # File doesn't have tag, so analyze it
           print(f"Analyzing file ID: {fileId}, MIME Type: {mimeType}")
           downloadFileAndUpdateMetadata(fileId, mimeType, service)
+      
+      # Update the pageToken for the next iteration
+      pageToken = retrievedFilesJson.get('nextPageToken', None)
+
+      # If there's no nextPageToken, we've processed all files
+      if not pageToken:
+        print("All files processed, exiting crawlDrive().")
+        return
 
   except HttpError as error:
     print(f"An HTTP error occurred while retrieving files: {error}")
