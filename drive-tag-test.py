@@ -44,6 +44,9 @@ validTags = ['Machine Learning', 'Philosophy', 'Historic Image', 'Non-Historic I
 geminiCompatibleFileTypes = ['.png', '.jpg', '.jpeg', '.pdf', '.doc', '.docx', '.txt'] # TODO UPDATE THIS LIST AS NEEDED
 imageFileTypes = ['.png', '.jpg', '.jpeg', '.webp'] # Used because image files will have their own prompt
 
+# Drive stores months as numbers, so use this dict when creating the respective month folder
+numberToMonth = {1: "January", 2: "February", 3: "March", 4: "April", 5: "May", 6: "June", 7: "July", 8: "August", 9: "September", 10: "October", 11: "November", 12: "December"}
+
 # First scope used to download drive files and update labels (tags)
 # Second scope used to create the label in the first place that will be associated with metadata
 # NOTE: This means that to use this program, you must use a Google account with admin access to the Google Drive
@@ -362,7 +365,7 @@ def checkIfFolderExists(service, folderName, parentFolderId=None):
     items = results.get('files', [])
 
     if items: # Folder exists
-      return True
+      return items[0].get('id')
     else:
       # Folder doesn't exist, so construct it
 
@@ -447,6 +450,7 @@ def copyFileToFolder(service, fileId, destinationFolderId):
 
       copiedFileId = copiedFile.get('id')
       if copiedFileId:
+        print(f"Copied {fileId} to {copiedFileId}")
         return copiedFileId
       else:
         print("Problem with copying the file (no ID returned)")
@@ -485,8 +489,6 @@ def organizeFiles(service):
     # Note that if a file has an issue being copied, it simply moves on to the next file. 
     try:
       while True:
-        nextFilesBatch = [] # The next batch of files to preform tagging on
-        
         # Get the json file containing the list of files from the Drive API
         retrievedFilesJson = service.files().list(
             pageSize=pageSize,
@@ -533,26 +535,47 @@ def organizeFiles(service):
           if yearFolderId:
             print(f"Year folder for {yearCreated} exists, proceeding with month organization.")
             
-            monthFolderId = checkIfFolderExists(service, str(monthCreated), yearFolderId)
+            # monthCreated is a number, so find the word (aka 7 -> July) for better folder naming
+            monthCreatedWord = numberToMonth[monthCreated]
+
+            monthFolderId = checkIfFolderExists(service, monthCreatedWord, yearFolderId)
             if monthFolderId:
-              print(f"Month folder for {monthCreated} exists, proceeding with tag organization.")
-              
+              print(f"Month folder for {monthCreatedWord} exists, proceeding with tag organization.")
+
               # Now check the tag
-              tagValue = properties.get('tag', 'Uncategorized') # Default to 'Uncategorized' if no tag exists     
+              tagValue = properties.get('tag') # Default to 'Uncategorized' if no tag exists     
 
-              tagFolderId = checkIfFolderExists(service, tagValue, monthFolderId)
+              if tagValue:
+                tagFolderId = checkIfFolderExists(service, tagValue, monthFolderId)
 
-              if tagFolderId:
-                print(f"Tag folder for '{tagValue}' exists, proceeding with file copy.")
-                copiedFileId = copyFileToFolder(service, fileId, tagFolderId)
+                if tagFolderId:
+                  print(f"Tag folder for '{tagValue}' exists, proceeding with file copy.")
+                  copiedFileId = copyFileToFolder(service, fileId, tagFolderId)
 
-                if copiedFileId:
-                  print(f"Successfully copied file to tag folder '{tagValue}' (ID: {copiedFileId})")
+                  if copiedFileId:
+                    print(f"Successfully copied file to tag folder '{tagValue}' (ID: {copiedFileId})")
+                  else:
+                    print(f"================ ATTENTION!!!!!! Failed to copy file to tag folder '{tagValue}'")
                 else:
-                  print(f"Failed to copy file to tag folder '{tagValue}'")
-              else:
-                print(f"Problem with creating tag folder '{tagValue}'. File {fileId} was NOT copied to the organized folder.")
-                print("Continuing with next file...")
+                  uncategorizedFolderId = checkIfFolderExists(service, "Uncategorized", monthFolderId)
+
+                  if uncategorizedFolderId:
+                    print(f"No tag associated with file, so copying to 'Uncategorized' folder")
+                    copiedFileId = copyFileToFolder(service, fileId, uncategorizedFolderId)
+
+                    if copiedFileId:
+                      print(f"Successfully copied file {fileId} to 'Uncategorized' folder (ID: {copiedFileId})")
+                    else:
+                      print(f"================ ATTENTION!!!!!! Failed to copy file to 'Uncategorized' folder")
+
+        # Update the pageToken for the next iteration
+        pageToken = retrievedFilesJson.get('nextPageToken', None)
+
+        # If there's no nextPageToken, we've processed all files
+        if not pageToken:
+          print("All files processed, exiting organizeFiles().")
+          return
+    
     except HttpError as error:
       print(f"An HTTP error occurred while retrieving files: {error}")
       exit(1)
@@ -562,8 +585,8 @@ def organizeFiles(service):
 
 def main():
   service = authenticateDriveAPI()
-
-  crawlDrive(service)
+  organizeFiles(service)
+  #crawlDrive(service)
 
 if __name__ == "__main__":
   # For testing purposes, use an image of a cat with a crab on its head
