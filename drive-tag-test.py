@@ -417,7 +417,7 @@ def copyFileToFolder(service, fileId, destinationFolderId):
       # Extract the 'tag' value if it exists
       tagValue = originalProperties.get('tag')
 
-      print(f"Attempting to copy file '{originalFileName}' (ID: {fileId})")
+      print(f"------Attempting to copy file '{originalFileName}' (ID: {fileId}) (Parent folder ID: {destinationFolderId})")
       if tagValue:
           print(f"  Original file has 'tag': '{tagValue}'")
       else:
@@ -462,6 +462,13 @@ def copyFileToFolder(service, fileId, destinationFolderId):
   except Exception as e:
       print(f"An unexpected error occurred during file copy: {e}")
       return None
+
+'''
+  Checks if there is a file with a given NAME (not ID) in a specified folder.
+  This is so that if organizeFiles() is run multiple times, it won't copy over 
+'''
+def checkIfFileInFolder(service, fileName, folderId):
+  pass
 
 '''
   Organizes files based first on creation date Year/Month, then on Tag.
@@ -585,8 +592,26 @@ def organizeFiles(service):
 
 def main():
   service = authenticateDriveAPI()
+
+  '''
+  docId = "1bAhK9xJCV3NSTiAU7TD0M1YCmguPZ75siKHMZC2wlcU"
+  slideId = "1U6MsqHpomCGBlUIqT3EtD0AI0Jwqd6az8RWtFqeyGVw"
+  sheetId = "1w9x87WzUnS0BXDTZGuPfUATw5d_2lqh_ShPCEZrLWNo"
+  formId = "1ChFI6cHrsHJwsly8rIUACV09cPLaYBE1o9tCFGgJSHc/edit"
+  folderId = "15IjXbOokKcueAKfdntwCvbR6uJ7plIV4"
+
+  copyFileToFolder(service, slideId, folderId)
+  copyFileToFolder(service, sheetId, folderId)
+  copyFileToFolder(service, formId, folderId)
+  '''
+
+  # 'A Rank stabilization scaling factor for fine tuning with Lora.pdf' (ID: 1B_4fMyPneocoIMthKZqScMWJq_nYaxCl)
+  #def copyFileToFolder(service, fileId, destinationFolderId):
+
   organizeFiles(service)
   #crawlDrive(service)
+
+ 
 
 if __name__ == "__main__":
   # For testing purposes, use an image of a cat with a crab on its head
@@ -600,3 +625,4 @@ if __name__ == "__main__":
     - Add prompt for each file type
     - Update README
   '''
+
