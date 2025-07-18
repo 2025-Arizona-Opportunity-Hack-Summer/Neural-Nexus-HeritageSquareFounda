@@ -31,13 +31,14 @@ from google import genai
 import tempfile
 import mimetypes
 from datetime import datetime
+import tkinter as tk # used for the GUI
 
 import os
 from dotenv import load_dotenv
 load_dotenv()
 
 #import google.generativeai as genai
-client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
+#client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
 
 validTags = ['Machine Learning', 'Philosophy', 'Historic Image', 'Non-Historic Image']
 # removed .webp because mimetypes doesn't recognize it
@@ -590,8 +591,114 @@ def organizeFiles(service):
       print(f"An error occurred while retrieving files: {e}")
       exit(1)
 
+''' 
+  The GUI will be built using Tkinter,
+  and it works best to have a class associated with the GUI.
+'''
+class TaggerMenu:
+  def __init__(self, rootWindow, service):
+    self.root = rootWindow
+    self.root.title("Google Drive Tagger")
+    self.root.geometry("600x500")
+
+    self.service = service # Used to make calls to Drive API
+    self.geminiKey = None 
+    self.geminiClient = None # Used to make calls to Gemini API
+
+    # ------- The widgets for the GUI -------
+    self.debugLabel = tk.Label(self.root) # Used to print what is happening as the program runs
+    
+    self.geminiKeyLabel = tk.Label(self.root, text="Enter your Gemini API Key:") # Label for Gemini API key textbox
+    self.geminiApiEntry = tk.Entry(self.root) # Textbox for entering Gemini API key
+    self.enterGeminiKeyButton = tk.Button(self.root, text="Verify Gemini API Key", command=self.verifyGeminiKey) # Button to verify Gemini API key
+
+    self.tagButton = tk.Button(self.root, text="Perform File Tagging", command=self.tagButtonClicked) # Runs method to analyze each file w/ Gemini and add tag accordingly
+
+
+    self.drawMainMenu()
+
+  def promptGemini(self, tempFilePath, promptMessage):
+    try:
+      self.debugLabel.config(text=f"Attempting to upload file to Gemini: {tempFilePath}")
+      myfile = self.geminiClient.files.upload(file=tempFilePath)
+      self.debugLabel.config(text=f"Successfully uploaded file to Gemini: {myfile.name}")
+
+      response = self.geminiClient.models.generate_content(
+          model="gemini-2.0-flash-lite", contents=[
+              promptMessage,
+              myfile 
+          ])
+
+      cleanedResponse = response.text.strip()
+
+      if cleanedResponse in validTags:
+          self.debugLabel.config(text=f"Gemini returned valid tag: {cleanedResponse}")
+          return cleanedResponse
+      else:
+          self.debugLabel.config(text=f"Invalid response from Gemini: {cleanedResponse}.\nValid tags are: {validTags}")
+          self.debugLabel.config(text="Returning tag as 'Uncategorized'")
+          return "Uncategorized"
+        
+    except HttpError as error:
+        self.debugLabel.config(text=f"Http error while prompting Gemini")
+    except Exception as e:
+        self.debugLabel.config(text=f"Error while prompting Gemini")
+
+  def verifyGeminiKey(self):
+    self.geminiKey = self.geminiApiEntry.get().strip()  # Get the key from the entry box
+
+    if not self.geminiKey or self.geminiKey == "":
+      self.debugLabel.config(text="Please enter a valid Gemini API key.")
+      return False
+
+    # Verify that the Gemini API key is valid by making a simple request
+    try:
+      self.geminiClient = genai.Client(api_key=self.geminiKey)
+      response = self.geminiClient.models.list()  # This will raise an error if the key is invalid
+      self.debugLabel.config(text=f"Gemini API key is valid.")
+      return True
+    except Exception as e:
+      self.debugLabel.config(text=f"Invalid Gemini API key")
+      return False
+
+  # Checks if the Json file from the Google Cloud project is present.
+  def verifyJsonPresent(self):
+    filename = "credentials.json"
+    if os.path.exists(filename):
+      self.debugLabel.config(text=f"'{filename}' found successfully")
+      return True
+    else:
+      self.debugLabel.config(text=f"'{filename}' not present in the current directory")
+      return False
+
+  def tagButtonClicked(self):
+    # 1. Verify Gemini key is valid
+    if self.verifyGeminiKey():
+      
+      # 2. Verify credentials.json file is present
+      if self.verifyJsonPresent():
+        self.debugLabel.config(text="Proceeding with tagging")
+        # TODO
+      else:
+        return
+
+  def drawMainMenu(self):
+    self.debugLabel.grid(row=0, column=0, columnspan=2, padx=10, pady=10)
+
+    self.geminiKeyLabel.grid(row=1, column=0, padx=10, pady=10)
+    self.geminiApiEntry.grid(row=1, column=1, columnspan=2, padx=10, pady=10)
+    self.enterGeminiKeyButton.grid(row=1, column=3, padx=10, pady=10)
+
+    self.tagButton.grid(row=2, column=0, padx=10, pady=10)
+
 def main():
+  
   service = authenticateDriveAPI()
+
+  rootWindow = tk.Tk()
+  app = TaggerMenu(rootWindow, service)
+  rootWindow.mainloop()
+
 
   '''
   docId = "1bAhK9xJCV3NSTiAU7TD0M1YCmguPZ75siKHMZC2wlcU"
@@ -608,10 +715,9 @@ def main():
   # 'A Rank stabilization scaling factor for fine tuning with Lora.pdf' (ID: 1B_4fMyPneocoIMthKZqScMWJq_nYaxCl)
   #def copyFileToFolder(service, fileId, destinationFolderId):
 
-  organizeFiles(service)
+  #organizeFiles(service)
   #crawlDrive(service)
 
- 
 
 if __name__ == "__main__":
   # For testing purposes, use an image of a cat with a crab on its head
