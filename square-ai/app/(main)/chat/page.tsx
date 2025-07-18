@@ -1,7 +1,8 @@
 import { SidebarTrigger } from "@/components/app-sidebar";
 import { WithSidebarLayout } from "@/components/with-sidebar";
 import { ModeToggle } from "@/components/theme-toggle";
-import { ChatInterface } from "@/components/chat-interface";
+import { ChatInterface } from "@/components/new-chat-interface";
+// import { ChatInterface } from "@/components/chat-interface";
 
 export default async function NewChatPage() {
   return (

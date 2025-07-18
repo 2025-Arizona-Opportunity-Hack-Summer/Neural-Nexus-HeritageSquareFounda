@@ -11,13 +11,13 @@ import { redirect } from "next/navigation";
 export default async function IndividualChatPage({
   params,
 }: {
-  params: Promise<{ id: string }>;
+  params: Promise<{ chatId: Id<"chats"> }>;
 }) {
   const token = await getAuthToken();
-  const { id } = await params;
+  const { chatId } = await params;
   const messages = await fetchQuery(
     api.messages.getAllByChatId,
-    { chatId: id as Id<"chats"> },
+    { chatId },
     { token },
   );
   if (!messages) redirect("/chat");
@@ -36,10 +36,7 @@ export default async function IndividualChatPage({
             </div>
           </header>
 
-          <ChatInterface
-            initialMessages={messages}
-            chatId={id as Id<"chats">}
-          />
+          <ChatInterface initialMessages={messages} chatId={chatId} />
         </div>
       </div>
     </WithSidebarLayout>
