@@ -24,19 +24,22 @@ import { NavUser } from "./nav-user";
 import { Doc } from "@/convex/_generated/dataModel";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { Preloaded, usePreloadedQuery } from "convex/react";
+import { api } from "@/convex/_generated/api";
 
 type SidebarProps = {
   user: Doc<"users">;
-  chats: Doc<"chats">[];
+  preloadedChats: Preloaded<typeof api.chats.getAllCurrentUser>;
 };
 
 export function AppSidebar({
   user,
-  chats,
+  preloadedChats,
   ...props
 }: React.ComponentProps<typeof Sidebar> & SidebarProps) {
   const router = useRouter();
   // TODO: add delete chat here
+  const chats = usePreloadedQuery(preloadedChats);
 
   return (
     <Sidebar {...props}>
