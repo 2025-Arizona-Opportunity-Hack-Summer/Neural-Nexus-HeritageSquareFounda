@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { ArrowUp, Copy, Sparkles } from "lucide-react";
 import { Id } from "@/convex/_generated/dataModel";
 import { UIMessage } from "ai";
+import { FormEvent, useState } from "react";
 
 export function ChatInterface({
   chatId,
@@ -13,13 +14,37 @@ export function ChatInterface({
   chatId?: Id<"chats">;
   initialMessages?: UIMessage[];
 }) {
-  const { messages, input, handleInputChange, handleSubmit } = useChat({
+  const [currentChatId, setCurrentChatId] = useState(chatId ? chatId : null);
+  const [hasNavigated, setHasNavigated] = useState(false);
+  const {
+    messages,
+    input,
+    handleInputChange,
+    handleSubmit: handleChatSubmit,
+  } = useChat({
     api: "/api/chat",
     initialMessages: initialMessages ? initialMessages : [],
     body: {
-      chatId,
+      currentChatId,
+    },
+    onResponse: (response) => {
+      const newChatId = response.headers.get("x-chat-id");
+      if (newChatId && !hasNavigated && !chatId) {
+        setCurrentChatId(newChatId as Id<"chats">);
+        window.history.pushState(null, "", `/chat/${newChatId}`);
+        setHasNavigated(true);
+      }
     },
   });
+  console.log(currentChatId);
+
+  const handleFormSubmit = async (e: FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+
+    if (!input.trim()) return;
+
+    handleChatSubmit(e);
+  };
 
   return (
     <>
@@ -92,7 +117,7 @@ export function ChatInterface({
       <footer className="w-full flex-shrink-0 flex justify-center p-4">
         <div className="w-full max-w-3xl mx-auto">
           <form
-            onSubmit={handleSubmit}
+            onSubmit={handleFormSubmit}
             className="bg-card/90 backdrop-blur-sm rounded-3xl border border-border shadow-lg p-4 transition-all duration-300 hover:shadow-xl"
           >
             <div className="space-y-3">
