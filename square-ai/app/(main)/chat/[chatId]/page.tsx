@@ -7,6 +7,7 @@ import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
 import { getAuthToken } from "@/lib/auth";
 import { redirect } from "next/navigation";
+import { UIMessage } from "ai";
 
 export default async function IndividualChatPage({
   params,
@@ -22,6 +23,16 @@ export default async function IndividualChatPage({
   );
   if (!messages) redirect("/chat");
 
+  const uiMessages = messages.map(
+    (message) =>
+      ({
+        content: message.content,
+        id: message.uiId,
+        parts: message.parts,
+        role: message.role,
+      }) satisfies UIMessage,
+  ) satisfies UIMessage[];
+
   return (
     <WithSidebarLayout>
       <div className="flex h-screen">
@@ -36,7 +47,7 @@ export default async function IndividualChatPage({
             </div>
           </header>
 
-          <ChatInterface initialMessages={messages} chatId={chatId} />
+          <ChatInterface initialMessages={uiMessages} chatId={chatId} />
         </div>
       </div>
     </WithSidebarLayout>

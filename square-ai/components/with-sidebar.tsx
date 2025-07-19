@@ -4,7 +4,7 @@ import { cookies } from "next/headers";
 import { currentUser } from "@clerk/nextjs/server";
 import { redirect } from "next/navigation";
 import { getAuthToken } from "@/lib/auth";
-import { fetchQuery, preloadQuery } from "convex/nextjs";
+import { fetchQuery } from "convex/nextjs";
 import { api } from "@/convex/_generated/api";
 
 export async function WithSidebarLayout({
@@ -28,15 +28,12 @@ export async function WithSidebarLayout({
   const dbUser = await fetchQuery(api.users.current, {}, { token });
   if (!dbUser) redirect("/sign-in");
 
-  const preloadedChats = await preloadQuery(
-    api.chats.getAllCurrentUser,
-    {},
-    { token },
-  );
+  const chats = await fetchQuery(api.chats.getAllCurrentUser, {}, { token });
+  console.log(dbUser);
 
   return (
     <SidebarProvider defaultOpen={defaultOpen} defaultWidth={sidebarWidth}>
-      <AppSidebar user={dbUser} preloadedChats={preloadedChats} />
+      <AppSidebar user={dbUser} chats={chats} />
       <SidebarInset>{children}</SidebarInset>
     </SidebarProvider>
   );
