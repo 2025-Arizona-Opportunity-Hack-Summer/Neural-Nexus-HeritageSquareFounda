@@ -37,6 +37,11 @@ import os
 from dotenv import load_dotenv
 load_dotenv()
 
+# So the program doesn't look like it froze,
+# have a thread dedicated to the tagging/sorting process
+import threading
+import queue # Since the tagging thread can't directly update labels in the GUI, use a queue
+
 #import google.generativeai as genai
 #client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
 
@@ -132,6 +137,8 @@ class TaggerMenu:
     self.geminiKey = None 
     self.geminiClient = None # Used to make calls to Gemini API
 
+    self.debugMessageQueue = queue.Queue() # Used to update the debug label in the GUI from the tagging thread
+
     # ------- The widgets for the GUI -------
     self.debugLabel = tk.Label(self.root) # Used to print what is happening as the program runs
     
@@ -143,6 +150,7 @@ class TaggerMenu:
 
 
     self.drawMainMenu()
+    self.checkQueue()
 
   def authenticateDriveAPI(self):
     if self.verifyJsonPresent():
@@ -394,6 +402,22 @@ class TaggerMenu:
       self.debugLabel.config(text=f"'{filename}' not present in the current directory")
       return False
 
+  def updateDebugMessageQueue(self, message):
+    self.debugMessageQueue.put(message)
+
+  def checkQueue(self):
+    """Checks the queue for new messages and updates the debug label."""
+    try:
+      while True:
+        message = self.debugMessageQueue.get_nowait()
+        self.debugLabel.config(text=message)
+        self.root.update_idletasks() # Force GUI update
+    except queue.Empty:
+      pass # No messages in the queue
+
+    # Schedule this method to run again after a short delay (e.g., 100 ms)
+    self.after_id = self.root.after(100, self.checkQueue)
+
   '''
     Crawls through the user's Google Drive and analyzes each file compatible with Gemini.
     Designed to look at all files in the Drive (ignoring ones that already have a tag),
@@ -416,13 +440,15 @@ class TaggerMenu:
 
         fileItems = retrievedFilesJson.get('files', [])
         if not fileItems:
-          self.debugLabel.config(text="No files retrieved from Drive API.")
+          #self.debugLabel.config(text="No files retrieved from Drive API.")
+          self.updateDebugMessageQueue("No files retrieved from Drive API.")
           return
         
         for item in fileItems:
           nextFilesBatch.append( (item['id'], item['mimeType']) )
 
         #self.debugLabel.config(text=f"Successfully retrieved {len(nextFilesBatch)} files from Drive API.")
+        self.updateDebugMessageQueue(f"Successfully retrieved {len(nextFilesBatch)} files from Drive API.")
 
         for file in nextFilesBatch:
           fileId = file[0]
@@ -436,10 +462,11 @@ class TaggerMenu:
 
           if ('properties' in fileMetadata) and ('tag' in fileMetadata['properties']):
             #self.debugLabel.config(text="File already has tag, skipping analysis")
-            pass
+            self.updateDebugMessageQueue("File already has tag, skipping analysis")
           else:
             # File doesn't have tag, so analyze it
-            self.debugLabel.config(text=f"Analyzing file {fileId}")
+            #self.debugLabel.config(text=f"Analyzing file {fileId}")
+            self.updateDebugMessageQueue(f"Analyzing file {fileId}")
             # TODO self.downloadFileAndUpdateMetadata(fileId, mimeType)
 
         # Update the pageToken for the next iteration
@@ -447,14 +474,17 @@ class TaggerMenu:
 
         # If there's no nextPageToken, we've processed all files
         if not pageToken:
-          self.debugLabel.config(text="Done tagging Drive files")
+          #self.debugLabel.config(text="Done tagging Drive files")
+          self.updateDebugMessageQueue("Done tagging Drive files")
           return
 
     except HttpError as error:
-      self.debugLabel.config(text=f"An HTTP error occurred while retrieving files")
+      #self.debugLabel.config(text=f"An HTTP error occurred while retrieving files")
+      self.updateDebugMessageQueue("An HTTP error occurred while retrieving files")
       return
     except Exception as e:
-      self.debugLabel.config(text=f"An error occurred while retrieving files: {e}")
+      #self.debugLabel.config(text=f"An error occurred while retrieving files: {e}")
+      self.updateDebugMessageQueue(f"An error occurred while retrieving files: {e}")
       return
 
   '''
@@ -592,13 +622,16 @@ class TaggerMenu:
         
         # 2. Verify credentials.json file is present
         if self.verifyJsonPresent():
-          self.debugLabel.config(text="Proceeding with tagging")
-          self.tagEachFile()
+          #self.debugLabel.config(text="Proceeding with tagging")
+          #self.tagEachFile()
+          taggingThread = threading.Thread(target=self.tagEachFile)
+          taggingThread.daemon = True
+          taggingThread.start()
         else:
           return
 
   def drawMainMenu(self):
-    self.debugLabel.grid(row=0, column=0, columnspan=2, padx=10, pady=10)
+    self.debugLabel.grid(row=0, column=0, columnspan=3, padx=0, pady=0)
 
     self.geminiKeyLabel.grid(row=1, column=0, padx=10, pady=10)
     self.geminiApiEntry.grid(row=1, column=1, columnspan=2, padx=10, pady=10)
