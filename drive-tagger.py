@@ -146,7 +146,8 @@ class TaggerMenu:
     self.geminiApiEntry = tk.Entry(self.root) # Textbox for entering Gemini API key
     self.enterGeminiKeyButton = tk.Button(self.root, text="Verify Gemini API Key", command=self.verifyGeminiKey) # Button to verify Gemini API key
 
-    self.tagButton = tk.Button(self.root, text="Perform File Tagging", command=self.tagButtonClicked) # Runs method to analyze each file w/ Gemini and add tag accordingly
+    self.tagButton = tk.Button(self.root, text="Perform file tagging", command=self.tagButtonClicked) # Runs method to analyze each file w/ Gemini and add tag accordingly
+    self.sortButton = tk.Button(self.root, text="Copy tagged files into organized folder", command=self.sortButtonClicked, state=tk.DISABLED) # Runs method to organize files based on tag and creation date
 
 
     self.drawMainMenu()
@@ -476,6 +477,7 @@ class TaggerMenu:
         if not pageToken:
           #self.debugLabel.config(text="Done tagging Drive files")
           self.updateDebugMessageQueue("Done tagging Drive files")
+          self.sortButton.config(state=tk.NORMAL)
           return
 
     except HttpError as error:
@@ -503,7 +505,8 @@ class TaggerMenu:
     baseFolderId = self.checkIfFolderExists(folderName=baseOrganizedFilesFolderName)
 
     if baseFolderId:
-      self.debugLabel.config(text=f"Base folder '{baseOrganizedFilesFolderName}' exists, proceeding with organization.")
+      #self.debugLabel.config(text=f"Base folder '{baseOrganizedFilesFolderName}' exists, proceeding with organization.")
+      self.updateDebugMessageQueue(f"Base folder '{baseOrganizedFilesFolderName}' exists, proceeding with organization.")
 
       pageToken = None # Used to request the next step of 1000 files from the Drive API
       pageSize = 1000 # The number of files to retrieve (max allowed per request is 1000)
@@ -526,7 +529,8 @@ class TaggerMenu:
 
           fileItems = retrievedFilesJson.get('files', [])
           if not fileItems:
-            self.debugLabel.config(text="No more files retrieved from Drive API.")
+            #self.debugLabel.config(text="No more files retrieved from Drive API.")
+            self.updateDebugMessageQueue("No more files retrieved from Drive API.")
             return
           
           # Now process each retrieved file
@@ -552,7 +556,8 @@ class TaggerMenu:
               monthCreated = created_dt.month
 
             if not yearCreated or not monthCreated:
-              self.debugLabel.config(text=f"Could not extract year or month from createdTime: {createdTimeStr}")
+              #self.debugLabel.config(text=f"Could not extract year or month from createdTime: {createdTimeStr}")
+              self.updateDebugMessageQueue(f"Could not extract year or month from createdTime: {createdTimeStr}")
               continue
 
             # Reminder that the series of folders these files will be stored in is:
@@ -561,14 +566,16 @@ class TaggerMenu:
             yearFolderId = self.checkIfFolderExists(str(yearCreated), baseFolderId)
 
             if yearFolderId:
-              self.debugLabel.config(text=f"Year folder for {yearCreated} exists, proceeding with month organization.")
+              #self.debugLabel.config(text=f"Year folder for {yearCreated} exists, proceeding with month organization.")
+              self.updateDebugMessageQueue(f"Year folder for {yearCreated} exists, proceeding with month organization.")
 
               # monthCreated is a number, so find the word (aka 7 -> July) for better folder naming
               monthCreatedWord = numberToMonth[monthCreated]
 
               monthFolderId = self.checkIfFolderExists(monthCreatedWord, yearFolderId)
               if monthFolderId:
-                self.debugLabel.config(text=f"Month folder for {monthCreatedWord} exists, proceeding with tag organization.")
+                #self.debugLabel.config(text=f"Month folder for {monthCreatedWord} exists, proceeding with tag organization.")
+                self.updateDebugMessageQueue(f"Month folder for {monthCreatedWord} exists, proceeding with tag organization.")
 
                 # Now check the tag
                 tagValue = properties.get('tag') # Default to 'Uncategorized' if no tag exists     
@@ -577,38 +584,40 @@ class TaggerMenu:
                   tagFolderId = self.checkIfFolderExists(tagValue, monthFolderId)
 
                   if tagFolderId:
-                    self.debugLabel.config(text=f"Tag folder for '{tagValue}' exists, proceeding with file copy.")
+                    #self.debugLabel.config(text=f"Tag folder for '{tagValue}' exists, proceeding with file copy.")
+                    self.updateDebugMessageQueue(f"Tag folder for '{tagValue}' exists, proceeding with file copy.")
+                    
                     copiedFileId = self.copyFileToFolder(fileId, tagFolderId)
 
                     if copiedFileId:
-                      self.debugLabel.config(text=f"Successfully copied file to tag folder '{tagValue}' (ID: {copiedFileId})")
+                      self.updateDebugMessageQueue(f"Successfully copied file to tag folder '{tagValue}' (ID: {copiedFileId})")
                     else:
-                      self.debugLabel.config(text="Failed to copy file to tag folder")
+                      self.updateDebugMessageQueue("Failed to copy file to tag folder")
                   else:
                     uncategorizedFolderId = self.checkIfFolderExists("Uncategorized", monthFolderId)
 
                     if uncategorizedFolderId:
-                      self.debugLabel.config(text="No tag associated with file, so copying to 'Uncategorized' folder")
+                      self.updateDebugMessageQueue("No tag associated with file, so copying to 'Uncategorized' folder")
                       copiedFileId = self.copyFileToFolder(fileId, uncategorizedFolderId)
 
                       if copiedFileId:
-                        self.debugLabel.config(text=f"Successfully copied file {fileId} to 'Uncategorized' folder (ID: {copiedFileId})")
+                        self.updateDebugMessageQueue(f"Successfully copied file {fileId} to 'Uncategorized' folder (ID: {copiedFileId})")
                       else:
-                        self.debugLabel.config(text="Failed to copy file to 'Uncategorized' folder")
+                        self.updateDebugMessageQueue("Failed to copy file to 'Uncategorized' folder")
 
           # Update the pageToken for the next iteration
           pageToken = retrievedFilesJson.get('nextPageToken', None)
 
           # If there's no nextPageToken, we've processed all files
           if not pageToken:
-            self.debugLabel.config(text="All files processed, exiting organizeFiles().")
+            self.updateDebugMessageQueue("All files processed, exiting organizeFiles().")
             return
       
       except HttpError as error:
-        self.debugLabel.config(text=f"An HTTP error occurred while retrieving files for sorting")
+        self.updateDebugMessageQueue(f"An HTTP error occurred while retrieving files for sorting")
         return
       except Exception as e:
-        self.debugLabel.config(text=f"An error occurred while retrieving files for sorting")
+        self.updateDebugMessageQueue(f"An error occurred while retrieving files for sorting")
         return
 
   def tagButtonClicked(self):
@@ -630,14 +639,22 @@ class TaggerMenu:
         else:
           return
 
+  def sortButtonClicked(self):
+    # Must run organizeFiles() in a thread otherwise the GUI will appear to freeze up
+    # since no other components can be updated while the method is running
+    sortingThread = threading.Thread(target=self.organizeFiles)
+    sortingThread.daemon = True
+    sortingThread.start()
+
   def drawMainMenu(self):
-    self.debugLabel.grid(row=0, column=0, columnspan=3, padx=0, pady=0)
+    self.debugLabel.grid(row=0, column=0, columnspan=3, padx=5, pady=10)
 
     self.geminiKeyLabel.grid(row=1, column=0, padx=10, pady=10)
     self.geminiApiEntry.grid(row=1, column=1, columnspan=2, padx=10, pady=10)
     self.enterGeminiKeyButton.grid(row=1, column=3, padx=10, pady=10)
 
     self.tagButton.grid(row=2, column=0, padx=10, pady=10)
+    self.sortButton.grid(row=2, column=1, padx=10, pady=10)
 
 def main():
 
