@@ -175,7 +175,7 @@ class TaggerMenu:
 
         return build("drive", "v3", credentials=creds)
       except Exception as e:
-        self.debugLabel.config(text=f"An error occurred during Drive authentication")
+        self.updateDebugMessageQueue(f"An error occurred during Drive authentication")
         return None
 
   '''
@@ -220,12 +220,12 @@ class TaggerMenu:
         if folderId:
           return folderId
         else:
-          self.debugLabel.config(text="Problem with creating the folder (no ID returned)")
-      
+          self.updateDebugMessageQueue("Problem with creating the folder (no ID returned)")
+
     except HttpError as error:
-      self.debugLabel.config(text="Http error when checking or creating folder")
+      self.updateDebugMessageQueue("Http error when checking or creating folder")
     except Exception as e:
-      self.debugLabel.config(text="Error occurred when checking or creating folder")
+      self.updateDebugMessageQueue("Error occurred when checking or creating folder")
 
   def copyFileToFolder(self, fileId, destinationFolderId):
     try:
@@ -270,17 +270,17 @@ class TaggerMenu:
 
       copiedFileId = copiedFile.get('id')
       if copiedFileId:
-        self.debugLabel.config(text=f"Copied {fileId} to {copiedFileId}")
+        self.updateDebugMessageQueue(f"Copied {fileId} to {copiedFileId}")
         return copiedFileId
       else:
-        self.debugLabel.config(text="Problem with copying the file (no ID returned)")
+        self.updateDebugMessageQueue("Problem with copying the file (no ID returned)")
         return None
 
     except HttpError as error:
-        self.debugLabel.config(text=f"An API error occurred during file copy")
+        self.updateDebugMessageQueue(f"An API error occurred during file copy")
         return None
     except Exception as e:
-        self.debugLabel.config(text=f"An unexpected error occurred during file copy")
+        self.updateDebugMessageQueue(f"An unexpected error occurred during file copy")
         return None
 
   def updateTagMetadata(self, fileId, tagValue):
@@ -301,10 +301,10 @@ class TaggerMenu:
             fields='id,name,properties'
         ).execute()
 
-      self.debugLabel.config(text=f"Successfully tagged file '{updatedFile.get('name')}'.")
+      self.updateDebugMessageQueue(f"Successfully tagged file '{updatedFile.get('name')}'.")
       return True
     except HttpError as error:
-      self.debugLabel.config(text=f"An error occurred while updating file metadata")
+      self.updateDebugMessageQueue(f"An error occurred while updating file metadata")
       return False
 
   # 1) Downloads a file from Google Drive  
@@ -318,7 +318,7 @@ class TaggerMenu:
       fileType = mimetypes.guess_extension(mimeType, strict=False) # use the mimetypes library to extract file type
       
       if (fileType is None) or (fileType not in geminiCompatibleFileTypes):
-        self.debugLabel.config(text="Setting incompatible file as 'Uncategorized'")
+        self.updateDebugMessageQueue("Setting incompatible file as 'Uncategorized'")
         self.updateTagMetadata(fileId, "Uncategorized")
         return
       
@@ -328,7 +328,7 @@ class TaggerMenu:
       done = False
       while done is False:
         status, done = downloader.next_chunk()
-        self.debugLabel.config(text=f"Downloaded to memory: {int(status.progress() * 100)}.")
+        self.updateDebugMessageQueue(f"Downloaded to memory: {int(status.progress() * 100)}.")
 
       # Reset the file pointer to the beginning of the stream
       file.seek(0)
@@ -345,14 +345,14 @@ class TaggerMenu:
       self.updateTagMetadata(fileId, tagValue)
 
     except Exception as error:
-      self.debugLabel.config(text=f"An error occurred: {error}")
+      self.updateDebugMessageQueue(f"An error occurred: {error}")
       file = None
 
   def promptGemini(self, tempFilePath, promptMessage):
     try:
-      self.debugLabel.config(text=f"Attempting to upload file to Gemini: {tempFilePath}")
+      self.updateDebugMessageQueue(f"Attempting to upload file to Gemini: {tempFilePath}")
       myfile = self.geminiClient.files.upload(file=tempFilePath)
-      self.debugLabel.config(text=f"Successfully uploaded file to Gemini: {myfile.name}")
+      self.updateDebugMessageQueue(f"Successfully uploaded file to Gemini: {myfile.name}")
 
       response = self.geminiClient.models.generate_content(
           model="gemini-2.0-flash-lite", contents=[
@@ -363,44 +363,44 @@ class TaggerMenu:
       cleanedResponse = response.text.strip()
 
       if cleanedResponse in validTags:
-          self.debugLabel.config(text=f"Gemini returned valid tag: {cleanedResponse}")
+          self.updateDebugMessageQueue(f"Gemini returned valid tag: {cleanedResponse}")
           return cleanedResponse
       else:
-          self.debugLabel.config(text="Invalid Gemini response. Setting tag as 'Uncategorized'")
+          self.updateDebugMessageQueue("Invalid Gemini response. Setting tag as 'Uncategorized'")
           return "Uncategorized"
         
     except HttpError as error:
-      self.debugLabel.config(text=f"Http error while prompting Gemini")
+      self.updateDebugMessageQueue(f"Http error while prompting Gemini")
       return "Uncategorized"
     except Exception as e:
-      self.debugLabel.config(text=f"Error while prompting Gemini")
-      return "Uncategorized" 
+      self.updateDebugMessageQueue(f"Error while prompting Gemini")
+      return "Uncategorized"
 
   def verifyGeminiKey(self):
     self.geminiKey = self.geminiApiEntry.get().strip()  # Get the key from the entry box
 
     if not self.geminiKey or self.geminiKey == "":
-      self.debugLabel.config(text="Please enter a valid Gemini API key.")
+      self.updateDebugMessageQueue("Please enter a valid Gemini API key.")
       return False
 
     # Verify that the Gemini API key is valid by making a simple request
     try:
       self.geminiClient = genai.Client(api_key=self.geminiKey)
       response = self.geminiClient.models.list()  # This will raise an error if the key is invalid
-      self.debugLabel.config(text=f"Gemini API key is valid.")
+      self.updateDebugMessageQueue(f"Gemini API key is valid.")
       return True
     except Exception as e:
-      self.debugLabel.config(text=f"Invalid Gemini API key")
+      self.updateDebugMessageQueue(f"Invalid Gemini API key")
       return False
 
   # Checks if the Json file from the Google Cloud project is present.
   def verifyJsonPresent(self):
     filename = "credentials.json"
     if os.path.exists(filename):
-      self.debugLabel.config(text=f"'{filename}' found successfully")
+      self.updateDebugMessageQueue(f"'{filename}' found successfully")
       return True
     else:
-      self.debugLabel.config(text=f"'{filename}' not present in the current directory")
+      self.updateDebugMessageQueue(f"'{filename}' not present in the current directory")
       return False
 
   def updateDebugMessageQueue(self, message):
@@ -468,7 +468,7 @@ class TaggerMenu:
             # File doesn't have tag, so analyze it
             #self.debugLabel.config(text=f"Analyzing file {fileId}")
             self.updateDebugMessageQueue(f"Analyzing file {fileId}")
-            # TODO self.downloadFileAndUpdateMetadata(fileId, mimeType)
+            self.downloadFileAndUpdateMetadata(fileId, mimeType)
 
         # Update the pageToken for the next iteration
         pageToken = retrievedFilesJson.get('nextPageToken', None)
@@ -668,6 +668,7 @@ if __name__ == "__main__":
   '''
     TODO / NEXT STEPS:
     - Add real prompt
+    - Make window wider, less tall
     - Don't copy file twice
     - Add backoff for Gemini API calls
     - Update README
