@@ -131,7 +131,7 @@ class TaggerMenu:
   def __init__(self, rootWindow):
     self.root = rootWindow
     self.root.title("Google Drive Tagger")
-    self.root.geometry("600x500")
+    self.root.geometry("900x200")
 
     self.service = None # Used to make calls to Drive API
     self.geminiKey = None 
@@ -140,8 +140,8 @@ class TaggerMenu:
     self.debugMessageQueue = queue.Queue() # Used to update the debug label in the GUI from the tagging thread
 
     # ------- The widgets for the GUI -------
-    self.debugLabel = tk.Label(self.root) # Used to print what is happening as the program runs
-    
+    self.debugLabel = tk.Label(self.root, justify=tk.LEFT) # Used to print what is happening as the program runs
+
     self.geminiKeyLabel = tk.Label(self.root, text="Enter your Gemini API Key:") # Label for Gemini API key textbox
     self.geminiApiEntry = tk.Entry(self.root) # Textbox for entering Gemini API key
     self.enterGeminiKeyButton = tk.Button(self.root, text="Verify Gemini API Key", command=self.verifyGeminiKey) # Button to verify Gemini API key
@@ -182,6 +182,8 @@ class TaggerMenu:
   Checks if folder exists, returns True if it does.
   Othwerise, creates the folder then returns True. 
   Optionally, you can provide the parent folder ID to have nested folders.
+  This method WILL NOT copy a file if there is a file with the same name in the destination folder.
+  The idea is that if there already is a file with the same name, then this method has been run before on said file. 
 '''
   def checkIfFolderExists(self, folderName, parentFolderId=None):
 
@@ -243,6 +245,24 @@ class TaggerMenu:
       # Extract the 'tag' value if it exists
       tagValue = originalProperties.get('tag')
 
+      # Step 1.5 Ensure that there isn't already a file with the same name in
+      # the destination folder. (If there is, don't copy file to it because this means the copy method has already been called for this file)
+
+      query = f"name = '{originalFileName}' and '{destinationFolderId}' in parents and trashed = false"
+            
+      # Execute the search query
+      results = self.service.files().list(
+          q=query,
+          fields='files(id, name)' # We only need id and name for the check
+      ).execute()
+
+      existingFiles = results.get('files', [])
+
+      if existingFiles:
+        # A file with the same name already exists in the destination folder
+        self.updateDebugMessageQueue(f"File '{originalFileName}' already exists in folder {destinationFolderId}. Skipping copy.")
+        return None # Indicate that no copy was performed
+
       # Step 2: Prepare the metadata for the copied file.
       # This includes the name, the parent folder, and the properties.
       copiedFileMetadata = {
@@ -258,7 +278,6 @@ class TaggerMenu:
           # If no tag, ensure properties are not explicitly set or are empty
           # to avoid transferring other unwanted properties if they existed.
           copiedFileMetadata['properties'] = {}
-
 
       # Step 3: Execute the copy operation.
       # pylint: disable=maybe-no-member
@@ -349,6 +368,12 @@ class TaggerMenu:
       file = None
 
   def promptGemini(self, tempFilePath, promptMessage):
+    '''
+      gemini-2.0-flash-lite rate limits:
+      - 30 requests per minute
+      - 200 requests per day
+    '''
+    
     try:
       self.updateDebugMessageQueue(f"Attempting to upload file to Gemini: {tempFilePath}")
       myfile = self.geminiClient.files.upload(file=tempFilePath)
@@ -368,7 +393,6 @@ class TaggerMenu:
       else:
           self.updateDebugMessageQueue("Invalid Gemini response. Setting tag as 'Uncategorized'")
           return "Uncategorized"
-        
     except HttpError as error:
       self.updateDebugMessageQueue(f"Http error while prompting Gemini")
       return "Uncategorized"
@@ -668,9 +692,6 @@ if __name__ == "__main__":
   '''
     TODO / NEXT STEPS:
     - Add real prompt
-    - Make window wider, less tall
-    - Don't copy file twice
     - Add backoff for Gemini API calls
     - Update README
   '''
-
