@@ -29,7 +29,6 @@ export async function WithSidebarLayout({
   if (!dbUser) redirect("/sign-in");
 
   const chats = await fetchQuery(api.chats.getAllCurrentUser, {}, { token });
-  console.log(dbUser);
 
   return (
     <SidebarProvider defaultOpen={defaultOpen} defaultWidth={sidebarWidth}>

@@ -74,3 +74,16 @@ export const del = mutation({
     await ctx.db.delete(chatId);
   },
 });
+
+export const updateTitle = mutation({
+  args: {
+    chatId: v.id("chats"),
+    title: v.string(),
+  },
+  handler: async (ctx, { chatId, title }) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (identity === null) throw new Error("Unauthenticated");
+
+    return await ctx.db.patch(chatId, { title });
+  },
+});
