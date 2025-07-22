@@ -85,6 +85,7 @@ export default defineSchema({
     title: v.string(),
     createdAt: v.number(),
     lastMessageAt: v.number(),
+    isPinned: v.boolean(),
   })
     .index("by_user_id", ["userId"])
     .index("by_user_id_last_message_at", ["userId", "lastMessageAt"]),

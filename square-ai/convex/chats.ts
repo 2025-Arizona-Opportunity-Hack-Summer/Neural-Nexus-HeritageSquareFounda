@@ -16,6 +16,7 @@ export const create = mutation({
     return await ctx.db.insert("chats", {
       title,
       userId: id,
+      isPinned: false,
       createdAt: Date.now(),
       lastMessageAt: Date.now(),
     });
@@ -95,5 +96,25 @@ export const updateLastMsgAt = mutation({
     if (identity === null) throw new Error("Unauthenticated");
 
     return await ctx.db.patch(chatId, { lastMessageAt: Date.now() });
+  },
+});
+
+export const pinChat = mutation({
+  args: { chatId: v.id("chats") },
+  handler: async (ctx, { chatId }) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (identity === null) throw new Error("Unauthenticated");
+
+    return await ctx.db.patch(chatId, { isPinned: true });
+  },
+});
+
+export const unpinChat = mutation({
+  args: { chatId: v.id("chats") },
+  handler: async (ctx, { chatId }) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (identity === null) throw new Error("Unauthenticated");
+
+    return await ctx.db.patch(chatId, { isPinned: false });
   },
 });
