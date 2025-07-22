@@ -5,6 +5,7 @@ import { ClerkProvider } from "@clerk/nextjs";
 import { ThemeProvider } from "@/components/theme-provider";
 import { GlobalCommandDialog } from "@/components/global-command-dialog";
 import "./globals.css";
+import { Toaster } from "@/components/ui/sonner";
 
 const outfit = Outfit({
   variable: "--font-sans",
@@ -37,6 +38,7 @@ export default function RootLayout({
             >
               {children}
               <GlobalCommandDialog />
+              <Toaster />
             </ThemeProvider>
           </ConvexClientProvider>
         </ClerkProvider>

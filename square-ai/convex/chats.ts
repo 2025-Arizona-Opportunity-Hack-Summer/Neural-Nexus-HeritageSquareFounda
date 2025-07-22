@@ -87,3 +87,13 @@ export const updateTitle = mutation({
     return await ctx.db.patch(chatId, { title });
   },
 });
+
+export const updateLastMsgAt = mutation({
+  args: { chatId: v.id("chats") },
+  handler: async (ctx, { chatId }) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (identity === null) throw new Error("Unauthenticated");
+
+    return await ctx.db.patch(chatId, { lastMessageAt: Date.now() });
+  },
+});

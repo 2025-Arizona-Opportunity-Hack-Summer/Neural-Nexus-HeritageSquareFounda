@@ -6,6 +6,7 @@ import { ArrowUp, Copy, Sparkles } from "lucide-react";
 import { Id } from "@/convex/_generated/dataModel";
 import { UIMessage } from "ai";
 import { FormEvent, useState } from "react";
+import { toast } from "sonner";
 
 export function ChatInterface({
   chatId,
@@ -44,6 +45,8 @@ export function ChatInterface({
     if (!input.trim()) return;
 
     handleChatSubmit(e);
+
+    toast("Reload page to see new chat 😇");
   };
 
   return (
@@ -86,6 +89,9 @@ export function ChatInterface({
                                 variant="ghost"
                                 size="sm"
                                 className="h-8 w-8 p-0"
+                                onClick={() =>
+                                  navigator.clipboard.writeText(message.content)
+                                }
                               >
                                 <Copy className="w-4 h-4" />
                               </Button>

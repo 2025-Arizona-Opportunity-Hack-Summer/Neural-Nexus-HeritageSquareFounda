@@ -117,6 +117,8 @@ export async function POST(req: Request) {
           { token },
         );
 
+        // update last message at
+        await fetchMutation(api.chats.updateLastMsgAt, { chatId }, { token });
         revalidatePath(`/chat/${chatId}`);
       }
     },

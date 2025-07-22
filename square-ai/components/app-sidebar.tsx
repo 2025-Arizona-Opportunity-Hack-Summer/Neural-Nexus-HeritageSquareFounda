@@ -22,7 +22,7 @@ import {
 } from "@/components/ui/tooltip";
 import { NavUser } from "./nav-user";
 import { Doc } from "@/convex/_generated/dataModel";
-import { useRouter } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 
 type SidebarProps = {
@@ -36,6 +36,8 @@ export function AppSidebar({
   ...props
 }: React.ComponentProps<typeof Sidebar> & SidebarProps) {
   const router = useRouter();
+  const { chatId } = useParams<{ chatId?: string }>();
+
   // TODO: add delete chat here
 
   return (
@@ -72,24 +74,29 @@ export function AppSidebar({
         <SidebarGroup>
           <SidebarGroupLabel>Chats</SidebarGroupLabel>
           <SidebarMenu>
-            {chats.map((chat) => (
-              <SidebarMenuItem key={chat.title}>
-                <SidebarMenuButton asChild>
-                  <div className="group/item flex w-full items-center justify-start overflow-hidden cursor-pointer">
-                    <Link
-                      href={`/chat/${chat._id}`}
-                      className="truncate duration-200 flex-grow text-primary-foreground"
-                    >
-                      {chat.title}
-                    </Link>
+            {chats
+              .sort((a, b) => b.createdAt - a.createdAt)
+              .map((chat) => (
+                <SidebarMenuItem key={chat._id}>
+                  <SidebarMenuButton
+                    asChild
+                    isActive={chatId && chatId === chat._id ? true : false}
+                  >
+                    <div className="group/item flex w-full items-center justify-start overflow-hidden cursor-pointer">
+                      <Link
+                        href={`/chat/${chat._id}`}
+                        className="truncate duration-200 flex-grow text-primary-foreground"
+                      >
+                        {chat.title}
+                      </Link>
 
-                    <Pin className="size-5 flex-shrink-0 opacity-0 translate-x-5 group-hover/item:opacity-100 group-hover/item:translate-x-0 transition-all duration-300 ease-in-out cursor-pointer hover:text-black dark:hover:text-gray-300" />
+                      <Pin className="size-5 flex-shrink-0 opacity-0 translate-x-5 group-hover/item:opacity-100 group-hover/item:translate-x-0 transition-all duration-300 ease-in-out cursor-pointer hover:text-black dark:hover:text-gray-300" />
 
-                    <X className="size-5 flex-shrink-0 opacity-0 translate-x-5 group-hover/item:opacity-100 group-hover/item:translate-x-0 transition-all duration-300 ease-in-out cursor-pointer hover:text-black dark:hover:text-gray-300" />
-                  </div>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-            ))}
+                      <X className="size-5 flex-shrink-0 opacity-0 translate-x-5 group-hover/item:opacity-100 group-hover/item:translate-x-0 transition-all duration-300 ease-in-out cursor-pointer hover:text-black dark:hover:text-gray-300" />
+                    </div>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              ))}
           </SidebarMenu>{" "}
         </SidebarGroup>
       </SidebarContent>
