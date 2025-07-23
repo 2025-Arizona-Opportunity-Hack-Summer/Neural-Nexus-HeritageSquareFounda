@@ -1,13 +1,7 @@
 "use client";
 
 import * as React from "react";
-import {
-  CreditCard,
-  MessageSquare,
-  Settings,
-  ShieldUser,
-  User,
-} from "lucide-react";
+import { MessageSquare, ShieldUser } from "lucide-react";
 
 import {
   CommandDialog,
@@ -17,7 +11,6 @@ import {
   CommandItem,
   CommandList,
   CommandSeparator,
-  CommandShortcut,
 } from "@/components/ui/command";
 import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
@@ -25,6 +18,8 @@ import { api } from "@/convex/_generated/api";
 export function GlobalCommandDialog() {
   const [open, setOpen] = React.useState(false);
   const user = useQuery(api.users.current);
+  const chats = useQuery(api.chats.getAllCurrentUser);
+  console.log(chats);
 
   React.useEffect(() => {
     const down = (e: KeyboardEvent) => {
@@ -60,23 +55,12 @@ export function GlobalCommandDialog() {
           </CommandGroup>
           <CommandSeparator />
 
-          {/* TODO: implement */}
           <CommandGroup heading="Recent Chats">
-            <CommandItem>
-              <User />
-              <span>Profile</span>
-              <CommandShortcut>⌘P</CommandShortcut>
-            </CommandItem>
-            <CommandItem>
-              <CreditCard />
-              <span>Billing</span>
-              <CommandShortcut>⌘B</CommandShortcut>
-            </CommandItem>
-            <CommandItem>
-              <Settings />
-              <span>Settings</span>
-              <CommandShortcut>⌘S</CommandShortcut>
-            </CommandItem>
+            {chats?.map((chat) => (
+              <CommandItem key={chat._id}>
+                <span>{chat.title}</span>
+              </CommandItem>
+            ))}
           </CommandGroup>
         </CommandList>
       </CommandDialog>

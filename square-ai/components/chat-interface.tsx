@@ -7,6 +7,9 @@ import { Id } from "@/convex/_generated/dataModel";
 import { UIMessage } from "ai";
 import { FormEvent, useState } from "react";
 import { toast } from "sonner";
+import Markdown from "react-markdown";
+import remarkGfm from "remark-gfm";
+import { useMDXComponents } from "./mdx-components";
 
 export function ChatInterface({
   chatId,
@@ -17,6 +20,7 @@ export function ChatInterface({
 }) {
   const [currentChatId, setCurrentChatId] = useState(chatId ? chatId : null);
   const [hasNavigated, setHasNavigated] = useState(false);
+  const components = useMDXComponents();
   const {
     messages,
     input,
@@ -80,9 +84,14 @@ export function ChatInterface({
                           </div>
                           <div className="flex flex-col max-w-[80%]">
                             <div className="rounded-2xl px-4 py-3 bg-muted text-foreground">
-                              <p className="leading-relaxed">
-                                {message.content}
-                              </p>
+                              <div className="leading-relaxed">
+                                <Markdown
+                                  remarkPlugins={[remarkGfm]}
+                                  components={components}
+                                >
+                                  {message.content}
+                                </Markdown>
+                              </div>
                             </div>
                             <div className="flex items-center space-x-1 mt-2 ml-2">
                               <Button
