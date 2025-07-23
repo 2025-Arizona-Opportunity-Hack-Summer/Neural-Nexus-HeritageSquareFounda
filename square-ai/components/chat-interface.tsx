@@ -48,9 +48,12 @@ export function ChatInterface({
 
     if (!input.trim()) return;
 
-    handleChatSubmit(e);
-
-    toast("Reload page to see new chat 😇");
+    try {
+      handleChatSubmit(e);
+    } catch (error) {
+      console.log(error);
+      toast("Something went wrong while making the chat ❌");
+    }
   };
 
   return (

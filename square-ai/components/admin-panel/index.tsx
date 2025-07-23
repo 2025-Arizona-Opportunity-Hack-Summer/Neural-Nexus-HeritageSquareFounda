@@ -13,12 +13,13 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { UserCheck, UserX, Mail, ArrowLeft } from "lucide-react";
+import { UserCheck, UserX, ArrowLeft } from "lucide-react";
 import { DataTable } from "./data-table";
 import { columns } from "./columns";
 import { Doc } from "@/convex/_generated/dataModel";
 import Link from "next/link";
 import { bulkVerifyUsers } from "./actions";
+import { OtherSettings } from "./other-settings";
 
 export function AdminPanel({ users }: { users: Doc<"users">[] }) {
   return (
@@ -35,10 +36,8 @@ export function AdminPanel({ users }: { users: Doc<"users">[] }) {
             </p>
           </div>
           <div className="flex gap-2">
-            <Button variant="outline" className="bg-card border-border">
-              <Mail className="mr-2 h-4 w-4" />
-              Send Notifications
-            </Button>
+            <OtherSettings />
+
             <Tooltip>
               <TooltipTrigger asChild>
                 <Button
