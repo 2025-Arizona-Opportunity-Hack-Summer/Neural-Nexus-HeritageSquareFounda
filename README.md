@@ -1,4 +1,6 @@
-This branch is a side project that uses Gemini to analyze all the files in a Google Drive and assign them relevant tags. The end goal is for a future project to use these tags to organize the Google Drive. 
+This branch is a side project that:
+* Uses Gemini to analyze all the files in a Google Drive and assign them relevant tags
+* Sorts files in a Drive according to: Year Created, Month Created, Tag Assigned (you can choose between MOVING files into a sorted folder, or Copying files into a sorted folder)
 
 ## Steps taken by the program:
 * Iteratively retrieve all file IDs from the drive (a max of 1000 can be retrieved at once)
