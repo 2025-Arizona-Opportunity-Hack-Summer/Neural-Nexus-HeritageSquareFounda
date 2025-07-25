@@ -1,19 +1,3 @@
-'''
-The following is a basic pipeline for downloading a file from Google Drive, 
-and having Gemini analyze it. 
-
-It works by downloading the file from Google Drive as intermediate byte data, 
-which it then converts in to a temporary file (so that the user's hard drive isn't clogged up with all the data from the Drive).
-Finally, it sends the temporary file to Gemini for analysis. 
-
-The next step will be to use the metadata API to store this tag in the metadata of the actual Drive file.
-'''
-
-
-'''
-This program requires you to download the credentials.json file from your Google Cloud project.
-I will make a readme explaining how to do this later. 
-'''
 import io
 
 import google.auth
@@ -47,10 +31,19 @@ import queue # Since the tagging thread can't directly update labels in the GUI,
 #import google.generativeai as genai
 #client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
 
-validTags = ['Machine Learning', 'Philosophy', 'Historic Image', 'Non-Historic Image']
+validTags = ['Accounting', 'Curation', 'Development (contributed revenue generation)', 'Employee resources (HR)', 'Board of Directors', 'Marketing', 'Operations', 'Programming', 'Research (historic info)', 'Historic Image', 'Non Historic Image']
 # removed .webp because mimetypes doesn't recognize it
-geminiCompatibleFileTypes = ['.png', '.jpg', '.jpeg', '.pdf', '.doc', '.docx', '.txt'] # TODO UPDATE THIS LIST AS NEEDED
-imageFileTypes = ['.png', '.jpg', '.jpeg', '.webp'] # Used because image files will have their own prompt
+#geminiCompatibleFileTypes = ['.png', '.jpg', '.jpeg', '.pdf', '.doc', '.docx', '.txt'] # TODO UPDATE THIS LIST AS NEEDED
+geminiCompatibleFileTypes = [
+  '.c', '.cpp', '.py', '.java', '.php', '.sql', '.html',
+  '.doc', '.docx', '.pdf', '.rtf', '.dot', '.dotx', '.hwp', '.hwpx',
+  '.png', '.jpg', '.jpeg', '.webp', '.heif', '.heic', # Added .heic for HEIF
+  '.txt',
+  '.pptx',
+  '.xls', '.xlsx',
+  '.csv', '.tsv',
+  '.mp4', '.mpeg', '.mov', '.avi', '.flv', '.mpg', '.webm', '.wmv', '.3gpp'
+]
 
 # Drive stores months as numbers, so use this dict when creating the respective month folder
 numberToMonth = {1: "January", 2: "February", 3: "March", 4: "April", 5: "May", 6: "June", 7: "July", 8: "August", 9: "September", 10: "October", 11: "November", 12: "December"}
@@ -62,42 +55,23 @@ SCOPES = ["https://www.googleapis.com/auth/drive"]
 
 # "https://www.googleapis.com/auth/drive.admin.labels"
 
-imageAnalyzerPrompt = """You are an AI model tasked with analyzing images to classify them as either Historic Image or Non-Historic Image. A Historic Image is a photograph taken before the modern era (approximately pre-1980s, before widespread digital photography), typically characterized by specific visual and contextual cues. A Non-Historic Image is a photograph taken with modern camera equipment (approximately 1980s or later, including digital cameras and smartphones). Your response must ONLY be "Historic Image" or "Non-Historic Image" with no additional explanation or text.
+documentAnalyzerPrompt = """You are assisting the Heritage Square Foundation in organizing their Google Drive by categorizing files based on their content. Review the attached file and use all available context clues (such as text, images, layout, file structure, and any embedded information) to determine which of the following categories it belongs to. Choose only one category that best represents the primary purpose or content of the file.
+For context, Heritage Square maintains Victorian era homes that can be toured for educational purposes.
+If the file doesn't fit any of the categories, return Uncategorized. Return only the category name, with no additional text, explanations, or punctuation.
 
-To classify the image that you have been provided with, analyze the following details:
+The categories are:
 
-1. **Image Quality and Characteristics:**
-   - **Historic Image**: Look for grainy textures, low resolution, faded colors, sepia or black-and-white tones, uneven exposure, or visible film imperfections (e.g., scratches, dust, or chemical stains).
-   - **Non-Historic Image**: Look for high resolution, sharp details, vibrant or natural colors, consistent exposure, and clean, digital-quality visuals typical of modern cameras or smartphones.
-
-2. **Contextual Elements:**
-   - **Historic Image**: Presence of period-specific elements such as vintage clothing (e.g., 19th or early 20th-century fashion), old-fashioned vehicles (e.g., horse-drawn carriages, early automobiles), or historical architecture (e.g., pre-modern buildings without contemporary design elements). May include analog photo borders or timestamps from early film cameras.
-   - **Non-Historic Image**: Presence of modern elements such as contemporary clothing, recent car models, smartphones, modern buildings with glass or steel designs, or digital watermarks/timestamps.
-
-3. **Technological Indicators:**
-   - **Historic Image**: Evidence of older photographic techniques, such as soft focus, limited depth of field, or signs of early flash photography (e.g., harsh shadows or overexposed spots). May include physical photo damage like creases or tears.
-   - **Non-Historic Image**: Signs of digital photography, such as lens flares typical of modern lenses, high dynamic range (HDR), or metadata-like digital timestamps embedded in the image.
-
-Classify the image based on these criteria and return ONLY Historic Image or Non-Historic Image, and nothing else
-"""
-
-documentAnalyzerPrompt = """You are an AI model tasked with analyzing text documents to classify them as either 'Machine Learning' or 'Philosophy'. Your response must ONLY be "Machine Learning" or "Philosophy" with no additional explanation or text.
-
-To classify the document that you have been provided with, analyze the following details:
-
-1.  **Core Concepts and Terminology:**
-    * **Machine Learning**: Look for terms such as "algorithm," "neural network," "deep learning," "AI," "data set," "model training," "supervised learning," "unsupervised learning," "reinforcement learning," "feature engineering," "overfitting," "bias," "accuracy," "precision," "recall," "F1-score," "regression," "classification," "clustering," "computer vision," "natural language processing (NLP)," "generative AI," "transformer," "gradient descent," "backpropagation," "tensor," "frameworks" (e.g., TensorFlow, PyTorch), "computational efficiency," "optimization," "predictive analytics," "big data," "data science," "statistical modeling," "pattern recognition," "artificial general intelligence (AGI)," "ethics in AI," "explainable AI (XAI)," "causality in ML," "reinforcement learning from human feedback (RLHF)."
-    * **Philosophy**: Look for terms such as "epistemology," "metaphysics," "ethics," "logic," "aesthetics," "ontology," "existentialism," "phenomenology," "rationalism," "empiricism," "idealism," "materialism," "dualism," "monism," "free will," "determinism," "consciousness," "mind-body problem," "virtue," "justice," "truth," "knowledge," "reason," "morality," "value," "meaning of life," "human nature," "political philosophy," "social contract," "utilitarianism," "deontology," "virtue ethics," "analytic philosophy," "continental philosophy," "philosophy of mind," "philosophy of language," "philosophy of science," "philosophy of religion," "a priori," "a posteriori," "deduction," "induction," "argument," "premise," "conclusion," "fallacy," "critique," "dialectic," "hermeneutics," "postmodernism."
-
-2.  **Subject Matter and Focus:**
-    * **Machine Learning**: Documents primarily discussing the development, application, theoretical underpinnings, performance, or societal impact of artificial intelligence systems, data analysis techniques, predictive models, and automation. This includes research papers on new algorithms, tutorials on implementing ML models, discussions on data privacy in AI, or analyses of AI's role in various industries.
-    * **Philosophy**: Documents primarily discussing fundamental questions about existence, knowledge, values, reason, mind, and language. This includes analyses of ethical dilemmas, discussions on the nature of reality, explorations of human consciousness, interpretations of historical philosophical texts, or arguments for different theories of knowledge or morality.
-
-3.  **Style and Structure:**
-    * **Machine Learning**: Often characterized by a more technical, empirical, or mathematical style, including equations, algorithms, experimental results, data visualizations, and discussions of computational methods. May include code snippets or pseudocode. Focus is on problem-solving, efficiency, and practical application.
-    * **Philosophy**: Often characterized by a more abstract, argumentative, and discursive style, involving logical reasoning, conceptual analysis, thought experiments, historical context, and critical evaluation of ideas. Focus is on conceptual clarity, coherence, and the exploration of fundamental questions.
-
-Classify the document based on these criteria and return ONLY "Machine Learning" or "Philosophy", and nothing else.
+Accounting
+Curation
+Development (contributed revenue generation)
+Employee resources (HR)
+Board of Directors
+Marketing
+Operations
+Programming
+Research (historic info)
+Historic Image
+Non Historic Image
 """
 
 
@@ -115,15 +89,6 @@ Classify the document based on these criteria and return ONLY "Machine Learning"
   Tabular data files: CSV, TSV*
   Videos: MP4, MPEG, MOV, AVI, X-FLV, MPG, WEBM, WMV, 3GPP
 '''
-fileAndPromptDict = {
-    ".jpg": imageAnalyzerPrompt,
-    ".jpeg": imageAnalyzerPrompt,
-    ".png": imageAnalyzerPrompt,
-    ".pdf": documentAnalyzerPrompt,
-    ".txt": documentAnalyzerPrompt,
-    ".doc": documentAnalyzerPrompt,
-    ".docx": documentAnalyzerPrompt
-}
 
 ''' 
   The GUI will be built using Tkinter,
@@ -131,6 +96,8 @@ fileAndPromptDict = {
 '''
 class TaggerMenu:
   def __init__(self, rootWindow):
+    self.moveFiles = False # Used to determine if files should be MOVED or COPIED
+    
     self.root = rootWindow
     self.root.title("Google Drive Tagger")
     self.root.geometry("800x450")
@@ -142,16 +109,24 @@ class TaggerMenu:
     self.debugMessageQueue = queue.Queue() # Used to update the debug label in the GUI from the tagging thread
 
     # ------- The widgets for the GUI -------
-    self.debugLabel = tk.Label(self.root, justify=tk.LEFT, bg = "gray80") # Used to print what is happening as the program runs
+    self.debugLabel = tk.Label(self.root, justify=tk.LEFT, bg = "gray75") # Used to print what is happening as the program runs
     self.debugLabelName = tk.Label(self.root, justify=tk.LEFT, text="Debug Output: ", bg = "gray80") # Label for the debug label
 
     self.geminiKeyLabel = tk.Label(self.root, text="Enter your Gemini API Key:", justify=tk.LEFT) # Label for Gemini API key textbox
     self.geminiApiEntry = tk.Entry(self.root) # Textbox for entering Gemini API key
-    self.enterGeminiKeyButton = tk.Button(self.root, text="Verify Gemini API Key", command=self.verifyGeminiKey) # Button to verify Gemini API key
 
     self.tagButton = tk.Button(self.root, text="Perform file tagging", command=self.tagButtonClicked) # Runs method to analyze each file w/ Gemini and add tag accordingly
-    self.sortButton = tk.Button(self.root, text="MOVE tagged files into organized folder", command=self.sortButtonClicked, state=tk.DISABLED) # Runs method to organize files based on tag and creation date
+    self.copySortButton = tk.Button(self.root, text="COPY tagged files into organized folder", command=self.copySortButtonClicked, state=tk.DISABLED) # Runs method to organize files based on tag and creation date
+    self.moveSortButton = tk.Button(self.root, text="MOVE tagged files into organized folder", command=self.moveSortButtonClicked, state=tk.DISABLED) # Runs method to organize files based on tag and creation date
 
+    instructionString =  "Please ensure credentials.json is in the same folder as this program.\n\nYou will need to click 'Perform file tagging' before files can be sorted.\n\nThe free tier of Google Gemini can only process 400 messages per day.\n\nIf you have more than 400 files then you will need to run this across multiple days."
+
+    self.instructionLabel = tk.Label(
+      self.root, text=instructionString, 
+      justify=tk.LEFT,
+      font=("Verdana", 10),
+      bg="gray75"
+    )
 
     self.drawMainMenu()
     self.checkQueue()
@@ -231,6 +206,70 @@ class TaggerMenu:
       self.updateDebugMessageQueue("Http error when checking or creating folder")
     except Exception as e:
       self.updateDebugMessageQueue("Error occurred when checking or creating folder")
+
+
+  '''
+  Moves a file from its current location to a specified destination folder in Google Drive.
+
+  Returns the ID of the moved file if successful, None otherwise.
+  '''
+  def moveFileToFolder(self, fileId, destinationFolderId):
+    try:
+      # Step 1: Get the original file's metadata, specifically its current parents.
+      # We need 'parents' to know which folder(s) to remove it from.
+      originalFileMetadata = self.service.files().get(
+          fileId=fileId,
+          fields='parents, name' # Also get name for logging/checking
+      ).execute()
+
+      currentParents = originalFileMetadata.get('parents', [])
+      originalFileName = originalFileMetadata.get('name')
+
+      # Step 1.5: Make sure there isn't already a file with the same name in the destination folder.
+      query = f"name = '{originalFileName}' and '{destinationFolderId}' in parents and trashed = false"
+      results = self.service.files().list(
+          q=query,
+          fields='files(id, name)'
+      ).execute()
+
+      existingFiles = results.get('files', [])
+
+      if existingFiles:
+        # A file with the same name already exists in the destination folder.
+        self.updateDebugMessageQueue(f"File '{originalFileName}' already exists in folder {destinationFolderId}. Skipping move to avoid duplicate names.")
+        return None # Indicate that no move was performed
+
+      # Step 2: Prepare the metadata for the update operation.
+
+      # We need to specify the file ID in the update call, but no body is strictly
+      # necessary if only parents are changing via addParents/removeParents.
+      # However, for consistency and future expansion, an empty body is often used.
+      file_body = {}
+
+      # Step 3: Execute the update operation to move the file.
+      # pylint: disable=maybe-no-member
+      movedFile = self.service.files().update(
+          fileId=fileId,
+          body=file_body, # Can be empty if only changing parents
+          addParents=destinationFolderId,
+          removeParents=','.join(currentParents), # Comma-separated list of parent IDs to remove
+          fields='id, name, parents' # Request parents back to confirm
+      ).execute()
+
+      movedFileId = movedFile.get('id')
+      if movedFileId:
+          self.updateDebugMessageQueue(f"Moved file {fileId} (name: '{originalFileName}') to folder {destinationFolderId}.")
+          return movedFileId
+      else:
+          self.updateDebugMessageQueue("Problem with moving the file (no ID returned)")
+          return None
+
+    except HttpError as error:
+        self.updateDebugMessageQueue(f"HTTP Error: Could not move file: {error}")
+        return None
+    except Exception as e:
+        self.updateDebugMessageQueue(f"Error: Could not move file: {e}")
+        return None
 
   def copyFileToFolder(self, fileId, destinationFolderId):
     try:
@@ -364,8 +403,7 @@ class TaggerMenu:
         temp_file_path = temp_file.name 
       
       # All the conditions are met to send the file to Gemini
-      promptMessage = fileAndPromptDict[fileType]
-      tagValue = self.promptGemini(temp_file_path, promptMessage)
+      tagValue = self.promptGemini(temp_file_path, documentAnalyzerPrompt)
 
       if tagValue == "DAILY_LIMIT_EXCEEDED":
         return tagValue
@@ -526,7 +564,8 @@ class TaggerMenu:
         if not pageToken:
           #self.debugLabel.config(text="Done tagging Drive files")
           self.updateDebugMessageQueue("Done tagging Drive files")
-          self.sortButton.config(state=tk.NORMAL)
+          self.copySortButton.config(state=tk.NORMAL)
+          self.moveSortButton.config(state=tk.NORMAL)
           return
 
     except HttpError as error:
@@ -633,26 +672,47 @@ class TaggerMenu:
                   tagFolderId = self.checkIfFolderExists(tagValue, monthFolderId)
 
                   if tagFolderId:
-                    #self.debugLabel.config(text=f"Tag folder for '{tagValue}' exists, proceeding with file copy.")
-                    self.updateDebugMessageQueue(f"Tag folder for '{tagValue}' exists, proceeding with file copy.")
                     
-                    copiedFileId = self.copyFileToFolder(fileId, tagFolderId)
+                    # Determine if file will be copied or moved
+                    if self.moveFiles:
+                      self.updateDebugMessageQueue(f"Tag folder for '{tagValue}' exists, proceeding with file moving.")
+                      
+                      movedFileId = self.moveFileToFolder(fileId, tagFolderId)
 
-                    if copiedFileId:
-                      self.updateDebugMessageQueue(f"Successfully copied file to tag folder '{tagValue}' (ID: {copiedFileId})")
+                      if movedFileId:
+                        self.updateDebugMessageQueue(f"Successfully moved file to tag folder '{tagValue}' (ID: {movedFileId})")
+                      else:
+                        self.updateDebugMessageQueue("Failed to move file to tag folder")
                     else:
-                      self.updateDebugMessageQueue("Failed to copy file to tag folder")
+                      self.updateDebugMessageQueue(f"Tag folder for '{tagValue}' exists, proceeding with file copying.")
+                      
+                      copiedFileId = self.copyFileToFolder(fileId, tagFolderId)
+
+                      if copiedFileId:
+                        self.updateDebugMessageQueue(f"Successfully copied file {fileId} to tag folder '{tagValue}' (ID: {copiedFileId})")
+                      else:
+                        self.updateDebugMessageQueue("Failed to copy file to tag folder")
+
                   else:
                     uncategorizedFolderId = self.checkIfFolderExists("Uncategorized", monthFolderId)
 
                     if uncategorizedFolderId:
                       self.updateDebugMessageQueue("No tag associated with file, so copying to 'Uncategorized' folder")
-                      copiedFileId = self.copyFileToFolder(fileId, uncategorizedFolderId)
+                      
+                      if self.moveFiles:
+                        movedFileId = self.moveFileToFolder(fileId, uncategorizedFolderId)
 
-                      if copiedFileId:
-                        self.updateDebugMessageQueue(f"Successfully copied file {fileId} to 'Uncategorized' folder (ID: {copiedFileId})")
+                        if movedFileId:
+                          self.updateDebugMessageQueue(f"Successfully moved file {fileId} to 'Uncategorized' folder (ID: {movedFileId})")
+                        else:
+                          self.updateDebugMessageQueue("Failed to move file to 'Uncategorized' folder")
                       else:
-                        self.updateDebugMessageQueue("Failed to copy file to 'Uncategorized' folder")
+                        copiedFileId = self.copyFileToFolder(fileId, uncategorizedFolderId)
+
+                        if copiedFileId:
+                          self.updateDebugMessageQueue(f"Successfully copied file {fileId} to 'Uncategorized' folder (ID: {copiedFileId})")
+                        else:
+                          self.updateDebugMessageQueue("Failed to copy file to 'Uncategorized' folder")
 
           # Update the pageToken for the next iteration
           pageToken = retrievedFilesJson.get('nextPageToken', None)
@@ -688,7 +748,16 @@ class TaggerMenu:
         else:
           return
 
-  def sortButtonClicked(self):
+  def copySortButtonClicked(self):
+    self.moveFiles = False
+    # Must run organizeFiles() in a thread otherwise the GUI will appear to freeze up
+    # since no other components can be updated while the method is running
+    sortingThread = threading.Thread(target=self.organizeFiles)
+    sortingThread.daemon = True
+    sortingThread.start()
+
+  def moveSortButtonClicked(self):
+    self.moveFiles = True
     # Must run organizeFiles() in a thread otherwise the GUI will appear to freeze up
     # since no other components can be updated while the method is running
     sortingThread = threading.Thread(target=self.organizeFiles)
@@ -696,15 +765,19 @@ class TaggerMenu:
     sortingThread.start()
 
   def drawMainMenu(self):
-    self.debugLabelName.grid(row=0, column=0, padx=10, pady=10, sticky=tk.W) # Label for the debug label
-    self.debugLabel.grid(row=0, column=1, columnspan=3, padx=10, pady=10, sticky=tk.W)
+    self.instructionLabel.grid(row=0, column=0, columnspan=10, padx=0, pady=10, sticky=tk.W)
+    
+    self.debugLabelName.grid(row=1, column=0, padx=0, pady=10, sticky=tk.W) # Label for the debug label
+    self.debugLabel.grid(row=1, column=1, columnspan=3, padx=0, pady=10, sticky=tk.W)
 
-    self.geminiKeyLabel.grid(row=1, column=0, padx=10, pady=10, sticky=tk.W)
-    self.geminiApiEntry.grid(row=1, column=1, columnspan=2, padx=10, pady=10, sticky=tk.W)
-    self.enterGeminiKeyButton.grid(row=1, column=3, padx=10, pady=10, sticky=tk.W)
+    self.geminiKeyLabel.grid(row=2, column=0, padx=10, pady=10, sticky=tk.W)
+    self.geminiApiEntry.grid(row=2, column=1, columnspan=2, padx=10, pady=10, sticky=tk.W)
 
-    self.tagButton.grid(row=2, column=0, padx=10, pady=10, sticky=tk.W)
-    self.sortButton.grid(row=2, column=1, padx=10, pady=10, sticky=tk.W)
+    self.tagButton.grid(row=3, column=0, padx=10, pady=10, sticky=tk.W)
+    self.copySortButton.grid(row=3, column=1, padx=10, pady=10, sticky=tk.W)
+    self.moveSortButton.grid(row=4, column=1, padx=10, pady=10, sticky=tk.W)
+
+    
 
 def main():
 
