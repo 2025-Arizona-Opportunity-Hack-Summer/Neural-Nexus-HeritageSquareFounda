@@ -20,6 +20,7 @@ import google.auth
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
 from googleapiclient.http import MediaIoBaseDownload
+from google.api_core.exceptions import GoogleAPIError # Used to catch Gemini rate limit errors
 
 from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
@@ -32,6 +33,7 @@ import tempfile
 import mimetypes
 from datetime import datetime
 import tkinter as tk # used for the GUI
+import time # Used if minute rate limit exceeded
 
 import os
 from dotenv import load_dotenv
@@ -131,7 +133,7 @@ class TaggerMenu:
   def __init__(self, rootWindow):
     self.root = rootWindow
     self.root.title("Google Drive Tagger")
-    self.root.geometry("900x200")
+    self.root.geometry("800x450")
 
     self.service = None # Used to make calls to Drive API
     self.geminiKey = None 
@@ -140,14 +142,15 @@ class TaggerMenu:
     self.debugMessageQueue = queue.Queue() # Used to update the debug label in the GUI from the tagging thread
 
     # ------- The widgets for the GUI -------
-    self.debugLabel = tk.Label(self.root, justify=tk.LEFT) # Used to print what is happening as the program runs
+    self.debugLabel = tk.Label(self.root, justify=tk.LEFT, bg = "gray80") # Used to print what is happening as the program runs
+    self.debugLabelName = tk.Label(self.root, justify=tk.LEFT, text="Debug Output: ", bg = "gray80") # Label for the debug label
 
-    self.geminiKeyLabel = tk.Label(self.root, text="Enter your Gemini API Key:") # Label for Gemini API key textbox
+    self.geminiKeyLabel = tk.Label(self.root, text="Enter your Gemini API Key:", justify=tk.LEFT) # Label for Gemini API key textbox
     self.geminiApiEntry = tk.Entry(self.root) # Textbox for entering Gemini API key
     self.enterGeminiKeyButton = tk.Button(self.root, text="Verify Gemini API Key", command=self.verifyGeminiKey) # Button to verify Gemini API key
 
     self.tagButton = tk.Button(self.root, text="Perform file tagging", command=self.tagButtonClicked) # Runs method to analyze each file w/ Gemini and add tag accordingly
-    self.sortButton = tk.Button(self.root, text="Copy tagged files into organized folder", command=self.sortButtonClicked, state=tk.DISABLED) # Runs method to organize files based on tag and creation date
+    self.sortButton = tk.Button(self.root, text="MOVE tagged files into organized folder", command=self.sortButtonClicked, state=tk.DISABLED) # Runs method to organize files based on tag and creation date
 
 
     self.drawMainMenu()
@@ -341,6 +344,9 @@ class TaggerMenu:
         self.updateTagMetadata(fileId, "Uncategorized")
         return
       
+
+
+      
       request = self.service.files().get_media(fileId=fileId)
       file = io.BytesIO()
       downloader = MediaIoBaseDownload(file, request)
@@ -361,11 +367,22 @@ class TaggerMenu:
       promptMessage = fileAndPromptDict[fileType]
       tagValue = self.promptGemini(temp_file_path, promptMessage)
 
+      if tagValue == "DAILY_LIMIT_EXCEEDED":
+        return tagValue
+
       self.updateTagMetadata(fileId, tagValue)
 
     except Exception as error:
       self.updateDebugMessageQueue(f"An error occurred: {error}")
       file = None
+    finally:
+      if temp_file_path and os.path.exists(temp_file_path):
+        try:
+          os.remove(temp_file_path)  # Clean up the temporary file
+          self.updateDebugMessageQueue(f"Temporary file {temp_file_path} deleted successfully.")
+        except Exception as e:
+          self.updateDebugMessageQueue(f"Error deleting temporary file: {e}")
+
 
   def promptGemini(self, tempFilePath, promptMessage):
     '''
@@ -374,31 +391,37 @@ class TaggerMenu:
       - 200 requests per day
     '''
     
-    try:
-      self.updateDebugMessageQueue(f"Attempting to upload file to Gemini: {tempFilePath}")
-      myfile = self.geminiClient.files.upload(file=tempFilePath)
-      self.updateDebugMessageQueue(f"Successfully uploaded file to Gemini: {myfile.name}")
+    # Attempt a finite number of times incase rate limit is exceeded
+    for attemptin in range(5):
 
-      response = self.geminiClient.models.generate_content(
-          model="gemini-2.0-flash-lite", contents=[
-              promptMessage,
-              myfile 
-          ])
+      try:
+        self.updateDebugMessageQueue(f"Attempting to upload file to Gemini: {tempFilePath}")
+        myfile = self.geminiClient.files.upload(file=tempFilePath)
+        self.updateDebugMessageQueue(f"Successfully uploaded file to Gemini: {myfile.name}")
 
-      cleanedResponse = response.text.strip()
+        response = self.geminiClient.models.generate_content(
+            model="gemini-2.0-flash-lite", contents=[
+                promptMessage,
+                myfile 
+            ])
 
-      if cleanedResponse in validTags:
-          self.updateDebugMessageQueue(f"Gemini returned valid tag: {cleanedResponse}")
-          return cleanedResponse
-      else:
-          self.updateDebugMessageQueue("Invalid Gemini response. Setting tag as 'Uncategorized'")
-          return "Uncategorized"
-    except HttpError as error:
-      self.updateDebugMessageQueue(f"Http error while prompting Gemini")
-      return "Uncategorized"
-    except Exception as e:
-      self.updateDebugMessageQueue(f"Error while prompting Gemini")
-      return "Uncategorized"
+        cleanedResponse = response.text.strip()
+
+        if cleanedResponse in validTags:
+            self.updateDebugMessageQueue(f"Gemini returned valid tag: {cleanedResponse}")
+            return cleanedResponse
+        else:
+            self.updateDebugMessageQueue("Invalid Gemini response. Setting tag as 'Uncategorized'")
+            return "Uncategorized"
+      
+      except GoogleAPIError as error:
+        if error.code == 429:
+            self.updateDebugMessageQueue("Daily Gemini rate limit exceeded. Please try again in 24 hours.")
+            return "DAILY_LIMIT_EXCEEDED"
+        else:
+            self.updateDebugMessageQueue(f"An unexpected error occurred: {error}")
+      except Exception as e:
+        return "Uncategorized" # If there is an error, it is likely because of an invalid file type, so return 'Uncategorized'
 
   def verifyGeminiKey(self):
     self.geminiKey = self.geminiApiEntry.get().strip()  # Get the key from the entry box
@@ -492,7 +515,9 @@ class TaggerMenu:
             # File doesn't have tag, so analyze it
             #self.debugLabel.config(text=f"Analyzing file {fileId}")
             self.updateDebugMessageQueue(f"Analyzing file {fileId}")
-            self.downloadFileAndUpdateMetadata(fileId, mimeType)
+            returnedValue = self.downloadFileAndUpdateMetadata(fileId, mimeType)
+            if returnedValue == "DAILY_LIMIT_EXCEEDED":
+              return
 
         # Update the pageToken for the next iteration
         pageToken = retrievedFilesJson.get('nextPageToken', None)
@@ -671,14 +696,15 @@ class TaggerMenu:
     sortingThread.start()
 
   def drawMainMenu(self):
-    self.debugLabel.grid(row=0, column=0, columnspan=3, padx=5, pady=10)
+    self.debugLabelName.grid(row=0, column=0, padx=10, pady=10, sticky=tk.W) # Label for the debug label
+    self.debugLabel.grid(row=0, column=1, columnspan=3, padx=10, pady=10, sticky=tk.W)
 
-    self.geminiKeyLabel.grid(row=1, column=0, padx=10, pady=10)
-    self.geminiApiEntry.grid(row=1, column=1, columnspan=2, padx=10, pady=10)
-    self.enterGeminiKeyButton.grid(row=1, column=3, padx=10, pady=10)
+    self.geminiKeyLabel.grid(row=1, column=0, padx=10, pady=10, sticky=tk.W)
+    self.geminiApiEntry.grid(row=1, column=1, columnspan=2, padx=10, pady=10, sticky=tk.W)
+    self.enterGeminiKeyButton.grid(row=1, column=3, padx=10, pady=10, sticky=tk.W)
 
-    self.tagButton.grid(row=2, column=0, padx=10, pady=10)
-    self.sortButton.grid(row=2, column=1, padx=10, pady=10)
+    self.tagButton.grid(row=2, column=0, padx=10, pady=10, sticky=tk.W)
+    self.sortButton.grid(row=2, column=1, padx=10, pady=10, sticky=tk.W)
 
 def main():
 
@@ -692,6 +718,5 @@ if __name__ == "__main__":
   '''
     TODO / NEXT STEPS:
     - Add real prompt
-    - Add backoff for Gemini API calls
     - Update README
   '''
