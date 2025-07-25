@@ -100,7 +100,7 @@ class TaggerMenu:
     
     self.root = rootWindow
     self.root.title("Google Drive Tagger")
-    self.root.geometry("800x450")
+    self.root.geometry("750x450")
 
     self.service = None # Used to make calls to Drive API
     self.geminiKey = None 
@@ -109,8 +109,16 @@ class TaggerMenu:
     self.debugMessageQueue = queue.Queue() # Used to update the debug label in the GUI from the tagging thread
 
     # ------- The widgets for the GUI -------
-    self.debugLabel = tk.Label(self.root, justify=tk.LEFT, bg = "gray75") # Used to print what is happening as the program runs
-    self.debugLabelName = tk.Label(self.root, justify=tk.LEFT, text="Debug Output: ", bg = "gray80") # Label for the debug label
+    #self.debugLabel = tk.Label(self.root, justify=tk.LEFT, bg = "gray75") # Used to print what is happening as the program runs
+    #self.debugLabelName = tk.Label(self.root, justify=tk.LEFT, text="Debug Output: ", bg = "gray80") # Label for the debug label
+    self.debugFrame = tk.Frame(self.root, bg="gray80")
+    self.debugLabelName = tk.Label(
+      self.debugFrame,
+      justify=tk.LEFT,
+      text="Debug Output: ",
+      bg="gray80",
+      wraplength=700  # Wrap text at 700 pixels to prevent excessive width
+    )
 
     self.geminiKeyLabel = tk.Label(self.root, text="Enter your Gemini API Key:", justify=tk.LEFT) # Label for Gemini API key textbox
     self.geminiApiEntry = tk.Entry(self.root) # Textbox for entering Gemini API key
@@ -372,6 +380,7 @@ class TaggerMenu:
   # 2) Calls promptGemini() to analyze it
   # 3) Updates metadata with the tag (or 'Uncategorized' if there is an issue)
   def downloadFileAndUpdateMetadata(self, fileId, mimeType):
+    temp_file_path = None
 
     try:
       # First, check if the file type is compatible with Gemini
@@ -382,9 +391,6 @@ class TaggerMenu:
         self.updateDebugMessageQueue("Setting incompatible file as 'Uncategorized'")
         self.updateTagMetadata(fileId, "Uncategorized")
         return
-      
-
-
       
       request = self.service.files().get_media(fileId=fileId)
       file = io.BytesIO()
@@ -402,8 +408,12 @@ class TaggerMenu:
         temp_file.write(file.getvalue())
         temp_file_path = temp_file.name 
       
-      # All the conditions are met to send the file to Gemini
-      tagValue = self.promptGemini(temp_file_path, documentAnalyzerPrompt)
+      if temp_file_path:
+        # All the conditions are met to send the file to Gemini
+        tagValue = self.promptGemini(temp_file_path, documentAnalyzerPrompt)
+      else:
+        self.updateDebugMessageQueue(f"Error creating temporary file for {fileId}")
+        tagValue = "Uncategorized"
 
       if tagValue == "DAILY_LIMIT_EXCEEDED":
         return tagValue
@@ -496,7 +506,7 @@ class TaggerMenu:
     try:
       while True:
         message = self.debugMessageQueue.get_nowait()
-        self.debugLabel.config(text=message)
+        self.debugLabelName.config(text=f"Debug Output: {message}")
         self.root.update_idletasks() # Force GUI update
     except queue.Empty:
       pass # No messages in the queue
@@ -569,19 +579,13 @@ class TaggerMenu:
           return
 
     except HttpError as error:
-      #self.debugLabel.config(text=f"An HTTP error occurred while retrieving files")
       self.updateDebugMessageQueue("An HTTP error occurred while retrieving files")
       return
     except Exception as e:
-      #self.debugLabel.config(text=f"An error occurred while retrieving files: {e}")
       self.updateDebugMessageQueue(f"An error occurred while retrieving files: {e}")
       return
 
-  '''
-    Organizes files based first on creation date Year/Month, then on Tag.
-    To avoid accidentally messing up the drive, this function will 
-    use a new folder called Organized-Drive-Files to store COPIES of the original files.
-  '''
+  
   def organizeFiles(self):
     # All files, once tagged, will be COPIED into a folder by this name.
     # Copied and not moved in case something goes wrong.
@@ -766,9 +770,13 @@ class TaggerMenu:
 
   def drawMainMenu(self):
     self.instructionLabel.grid(row=0, column=0, columnspan=10, padx=0, pady=10, sticky=tk.W)
-    
-    self.debugLabelName.grid(row=1, column=0, padx=0, pady=10, sticky=tk.W) # Label for the debug label
-    self.debugLabel.grid(row=1, column=1, columnspan=3, padx=0, pady=10, sticky=tk.W)
+
+    # Place the debugFrame in the grid, spanning columns
+    self.debugFrame.grid(row=1, column=0, columnspan=7, padx=0, pady=10, sticky=tk.W)
+    # Pack the debugLabelName inside the debugFrame
+    self.debugLabelName.pack(side=tk.LEFT, fill=tk.X)
+    #self.debugLabelName.grid(row=1, column=0, columnspan=7, padx=0, pady=10, sticky=tk.W) # Label for the debug label
+    #self.debugLabel.grid(row=1, column=1, columnspan=3, padx=0, pady=10, sticky=tk.W)
 
     self.geminiKeyLabel.grid(row=2, column=0, padx=10, pady=10, sticky=tk.W)
     self.geminiApiEntry.grid(row=2, column=1, columnspan=2, padx=10, pady=10, sticky=tk.W)
@@ -790,6 +798,5 @@ if __name__ == "__main__":
 
   '''
     TODO / NEXT STEPS:
-    - Add real prompt
     - Update README
   '''
