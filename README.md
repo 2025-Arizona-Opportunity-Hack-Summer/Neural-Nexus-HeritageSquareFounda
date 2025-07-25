@@ -15,3 +15,4 @@ Please download the executable file "drive-tagger.exe". Currently this program i
 When you create your Google Cloud project, you will get a .json file that you must rename to "credentials.json" and place in the same folder as "drive-tagger.exe".
 
 ## CREATING A GOOGLE CLOUD PROJECT
+[Go to Google Cloud](https://console.cloud.google.com/)
