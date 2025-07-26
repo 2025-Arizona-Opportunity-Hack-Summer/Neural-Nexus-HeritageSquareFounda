@@ -1,9 +1,18 @@
-This branch is a side project that uses Gemini to analyze all the files in a Google Drive and assign them relevant tags. The end goal is for a future project to use these tags to organize the Google Drive. 
+This branch is a side project that:
+* Uses Gemini to analyze all the files in a Google Drive and assign them relevant tags
+* Sorts files in a Drive according to: Year Created, Month Created, Tag Assigned (you can choose between MOVING files into a sorted folder, or COPYING files into a sorted folder depending on how much you trust this program)
 
-## Steps taken by the program:
-* Iteratively retrieve all file IDs from the drive (a max of 1000 can be retrieved at once)
-* Download each file as a tempfile
-* Send the tempfile to Gemini to find its corresponding tag
-* Store the tag as metadata
+# IMPORTANT THINGS TO KNOW:
+### This program will require you to create a Google Cloud project, as well as a Google Gemini API key. 
+The reason you must create a Google Cloud project yourself is so that you and only you maintain complete control over your own Drive. Doing this means that there is absolutely no way anyone in our team would be able to access your Drive. 
+You will also create your own Gemini API key so that you may choose to upgrade to the paid version if you desire (we recommend you stick with the free tier, however).
 
-This program relies on the Drive API to retrieve files and manage their metadata. It also uses the Gemini API to analyze the files. It requires a Google Cloud project to be created. 
+### PLEASE NOTE: The free tier of Gemini only allows 400 messages per day
+This means that this program will only be able to analyze (assign tags to) 400 files in a 24 hour period. If you have more than 400 files in you Drive then you will need to run this program and click 'tag' over the course of multiple 24 hour periods.
+
+# GETTING STARTED
+Please download the executable file "drive-tagger.exe". Currently this program is only supported on Windows. 
+When you create your Google Cloud project, you will get a .json file that you must rename to "credentials.json" and place in the same folder as "drive-tagger.exe".
+
+## CREATING A GOOGLE CLOUD PROJECT
+[Go to Google Cloud](https://console.cloud.google.com/)
