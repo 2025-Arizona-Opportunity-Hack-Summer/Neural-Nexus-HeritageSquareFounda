@@ -8,10 +8,10 @@ from src.models.predict_model import make_prediction
 from src.features.build_features import add_answer
 import pandas as pd
 
-home = "Project Home"
-data = "Data Sources"
-features = "Feature Engineering"
-training = "Model Training"
+home: str = "Project Home"
+data: str = "Data Sources"
+features: str = "Feature Engineering"
+training: str = "Model Training"
 
 
 def render_home() -> None:
@@ -19,7 +19,7 @@ def render_home() -> None:
     st.write("Streamlit App Boilerplate that contains everything you need to get running.")
 
     st.subheader("Make a prediction")
-    with st.form("model_prediciton"):
+    with st.form("model_prediction"):
         input_data = st.text_input(
             "Model Input", "Enter some input features to make a prediction"
         )
@@ -90,14 +90,17 @@ def render_training():
         st.subheader(sub_path.name)
         st.write("Size in bytes: ", len(sub_path.read_bytes()))
 
-display_page = st.sidebar.radio("View Page:", (home, data, features, training))
+display_page: str = st.sidebar.radio("View Page:", (home, data, features, training))
 st.header("Streamlit App")
 
-if display_page == home:
-    render_home()
-elif display_page == data:
-    render_data()
-elif display_page == features:
-    render_features()
-elif display_page == training:
-    render_training()
+match display_page:
+    case str(home):
+        render_home()
+    case str(data):
+        render_data()
+    case str(features):
+        render_features()
+    case str(training):
+        render_training()
+    case _:
+        print()

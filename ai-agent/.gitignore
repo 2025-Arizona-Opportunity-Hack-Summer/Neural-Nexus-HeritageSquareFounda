@@ -127,3 +127,9 @@ dmypy.json
 
 # Pyre type checker
 .pyre/
+
+
+AuthKey.txt
+credentials.json
+pips.txt
+token.json

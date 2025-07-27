@@ -8,3 +8,11 @@ pytest
 pytest-cov
 seleniumbase
 watchdog
+python-dotenv
+Pillow
+# Google
+google-auth
+google-api-core
+google-api-python-client
+google-auth-oauthlib
+google-genai
