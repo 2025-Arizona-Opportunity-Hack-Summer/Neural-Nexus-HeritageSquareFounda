@@ -2,8 +2,7 @@
 # -*- coding: utf-8 -*-
 
 import io
-
-from typing import List, Dict, Tuple, Set, Any, Union
+from typing import List, Dict, Tuple, Set, Any, Union, Optional, Literal
 
 import google.auth
 from googleapiclient.discovery import build
@@ -75,7 +74,7 @@ geminiCompatibleFileTypes: List[str] = [
     ".jpeg",
     ".webp",
     ".heif",
-    ".heic",  # Added .heic for HEIF
+    ".heic",
     ".txt",
     ".pptx",
     ".xls",
@@ -116,7 +115,7 @@ SCOPES: List[str] = ["https://www.googleapis.com/auth/drive"]
 
 # "https://www.googleapis.com/auth/drive.admin.labels"
 
-documentAnalyzerPrompt = """You are assisting the Heritage Square Foundation in organizing their Google Drive by categorizing files based on their content. Review the attached file and use all available context clues (such as text, images, layout, file structure, and any embedded information) to determine which of the following categories it belongs to. Choose only one category that best represents the primary purpose or content of the file.
+documentAnalyzerPrompt: str = """You are assisting the Heritage Square Foundation in organizing their Google Drive by categorizing files based on their content. Review the attached file and use all available context clues (such as text, images, layout, file structure, and any embedded information) to determine which of the following categories it belongs to. Choose only one category that best represents the primary purpose or content of the file.
 For context, Heritage Square maintains Victorian era homes that can be toured for educational purposes.
 If the file doesn't fit any of the categories, return Uncategorized. Return only the category name, with no additional text, explanations, or punctuation.
 
@@ -156,28 +155,39 @@ Non Historic Image
   and it works best to have a class associated with the GUI.
 """
 
+# Type aliases for better readability
+FileId = str
+FolderId = str
+MimeType = str
+TagValue = str
+ApiResponse = Dict[str, Any]
+FileMetadata = Dict[str, Any]
+FileProperties = Dict[str, str]
+GeminiResponse = str
+ValidationResult = Literal["DAILY_LIMIT_EXCEEDED", "Uncategorized"] | TagValue
 
-class TaggerMenu(object):
-    def __init__(self, rootWindow) -> None:
-        self.moveFiles = False  # Used to determine if files should be MOVED or COPIED
 
-        self.root = rootWindow
+class TaggerMenu:
+    def __init__(self, rootWindow: tk.Tk) -> None:
+        self.moveFiles: bool = False  # Used to determine if files should be MOVED or COPIED
+
+        self.root: tk.Tk = rootWindow
         self.root.title("Google Drive Tagger")
         self.root.geometry("750x450")
 
-        self.service = None  # Used to make calls to Drive API
-        self.geminiKey = None
-        self.geminiClient = None  # Used to make calls to Gemini API
+        self.service: Optional[Any] = None  # Used to make calls to Drive API
+        self.geminiKey: Optional[str] = None
+        self.geminiClient: Optional[genai.Client] = None  # Used to make calls to Gemini API
 
-        self.debugMessageQueue = (
+        self.debugMessageQueue: queue.Queue[str] = (
             queue.Queue()
         )  # Used to update the debug label in the GUI from the tagging thread
 
         # ------- The widgets for the GUI -------
         # self.debugLabel = tk.Label(self.root, justify=tk.LEFT, bg = "gray75") # Used to print what is happening as the program runs
         # self.debugLabelName = tk.Label(self.root, justify=tk.LEFT, text="Debug Output: ", bg = "gray80") # Label for the debug label
-        self.debugFrame = tk.Frame(self.root, bg="gray80")
-        self.debugLabelName = tk.Label(
+        self.debugFrame: tk.Frame = tk.Frame(self.root, bg="gray80")
+        self.debugLabelName: tk.Label = tk.Label(
             self.debugFrame,
             justify=tk.LEFT,
             text="Debug Output: ",
@@ -185,30 +195,30 @@ class TaggerMenu(object):
             wraplength=700,  # Wrap text at 700 pixels to prevent excessive width
         )
 
-        self.geminiKeyLabel = tk.Label(
+        self.geminiKeyLabel: tk.Label = tk.Label(
             self.root, text="Enter your Gemini API Key:", justify=tk.LEFT
         )  # Label for Gemini API key textbox
-        self.geminiApiEntry = tk.Entry(self.root)  # Textbox for entering Gemini API key
+        self.geminiApiEntry: tk.Entry = tk.Entry(self.root)  # Textbox for entering Gemini API key
 
-        self.tagButton = tk.Button(
+        self.tagButton: tk.Button = tk.Button(
             self.root, text="Perform file tagging", command=self.tagButtonClicked
         )  # Runs method to analyze each file w/ Gemini and add tag accordingly
-        self.copySortButton = tk.Button(
+        self.copySortButton: tk.Button = tk.Button(
             self.root,
             text="COPY tagged files into organized folder",
             command=self.copySortButtonClicked,
             state=tk.DISABLED,
         )  # Runs method to organize files based on tag and creation date
-        self.moveSortButton = tk.Button(
+        self.moveSortButton: tk.Button = tk.Button(
             self.root,
             text="MOVE tagged files into organized folder",
             command=self.moveSortButtonClicked,
             state=tk.DISABLED,
         )  # Runs method to organize files based on tag and creation date
 
-        instructionString = "Please ensure credentials.json is in the same folder as this program.\n\nYou will need to click 'Perform file tagging' before files can be sorted.\n\nThe free tier of Google Gemini can only process 400 messages per day.\n\nIf you have more than 400 files then you will need to run this across multiple days."
+        instructionString: str = "Please ensure credentials.json is in the same folder as this program.\n\nYou will need to click 'Perform file tagging' before files can be sorted.\n\nThe free tier of Google Gemini can only process 400 messages per day.\n\nIf you have more than 400 files then you will need to run this across multiple days."
 
-        self.instructionLabel = tk.Label(
+        self.instructionLabel: tk.Label = tk.Label(
             self.root,
             text=instructionString,
             justify=tk.LEFT,
@@ -219,11 +229,11 @@ class TaggerMenu(object):
         self.drawMainMenu()
         self.checkQueue()
 
-    def authenticateDriveAPI(self) -> "drive_v3.Resource" | None:
+    def authenticateDriveAPI(self) -> Optional[Any]:
         if self.verifyJsonPresent():
             # The following is copied from the Drive API documentation quickstart guide
-            creds = None
-            flow = None
+            creds: Optional[Credentials] = None
+            flow: Optional[InstalledAppFlow] = None
 
             try:
                 if os.path.exists("token.json"):
@@ -256,21 +266,21 @@ class TaggerMenu(object):
   The idea is that if there already is a file with the same name, then this method has been run before on said file. 
 """
 
-    def checkIfFolderExists(self, folderName, parentFolderId=None):
+    def checkIfFolderExists(self, folderName: str, parentFolderId: Optional[FolderId] = None) -> Optional[FolderId]:
 
         try:
             # Note that the Drive API treats folders as a file with the MIME type of "application/vnd.google-apps.folder"
-            query = f"name='{folderName}' and mimeType='application/vnd.google-apps.folder' and trashed=false"
+            query: str = f"name='{folderName}' and mimeType='application/vnd.google-apps.folder' and trashed=false"
             if parentFolderId:
                 query += f" and '{parentFolderId}' in parents"
 
             # Check if folder already exists:
-            results = (
+            results: ApiResponse = (
                 self.service.files()
                 .list(q=query, spaces="drive", fields="files(id, name)")
                 .execute()
             )
-            items = results.get("files", [])
+            items: List[FileMetadata] = results.get("files", [])
 
             if items:  # Folder exists
                 return items[0].get("id")
@@ -278,7 +288,7 @@ class TaggerMenu(object):
                 # Folder doesn't exist, so construct it
 
                 # Define metadata for the new folder
-                fileMetadata = {
+                fileMetadata: FileMetadata = {
                     "name": folderName,
                     "mimeType": "application/vnd.google-apps.folder",
                 }
@@ -288,12 +298,12 @@ class TaggerMenu(object):
                     fileMetadata["parents"] = [parentFolderId]
 
                 # Create the folder
-                file = (
+                file: ApiResponse = (
                     self.service.files()
                     .create(body=fileMetadata, fields="id")
                     .execute()
                 )
-                folderId = file.get("id")
+                folderId: Optional[FolderId] = file.get("id")
 
                 if folderId:
                     return folderId
@@ -301,6 +311,7 @@ class TaggerMenu(object):
                     self.updateDebugMessageQueue(
                         "Problem with creating the folder (no ID returned)"
                     )
+                    return None
 
         except HttpError as error:
             self.updateDebugMessageQueue("Http error when checking or creating folder")
@@ -308,6 +319,7 @@ class TaggerMenu(object):
             self.updateDebugMessageQueue(
                 "Error occurred when checking or creating folder"
             )
+            return None
 
     """
   Moves a file from its current location to a specified destination folder in Google Drive.
@@ -315,11 +327,11 @@ class TaggerMenu(object):
   Returns the ID of the moved file if successful, None otherwise.
   """
 
-    def moveFileToFolder(self, fileId, destinationFolderId):
+    def moveFileToFolder(self, fileId: FileId, destinationFolderId: FolderId) -> Optional[FileId]:
         try:
             # Step 1: Get the original file's metadata, specifically its current parents.
             # We need 'parents' to know which folder(s) to remove it from.
-            originalFileMetadata = (
+            originalFileMetadata: ApiResponse = (
                 self.service.files()
                 .get(
                     fileId=fileId,
@@ -328,16 +340,16 @@ class TaggerMenu(object):
                 .execute()
             )
 
-            currentParents = originalFileMetadata.get("parents", [])
-            originalFileName = originalFileMetadata.get("name")
+            currentParents: List[FolderId] = originalFileMetadata.get("parents", [])
+            originalFileName: str = originalFileMetadata.get("name", "")
 
             # Step 1.5: Make sure there isn't already a file with the same name in the destination folder.
-            query = f"name = '{originalFileName}' and '{destinationFolderId}' in parents and trashed = false"
-            results = (
+            query: str = f"name = '{originalFileName}' and '{destinationFolderId}' in parents and trashed = false"
+            results: ApiResponse = (
                 self.service.files().list(q=query, fields="files(id, name)").execute()
             )
 
-            existingFiles = results.get("files", [])
+            existingFiles: List[FileMetadata] = results.get("files", [])
 
             if existingFiles:
                 # A file with the same name already exists in the destination folder.
@@ -351,11 +363,11 @@ class TaggerMenu(object):
             # We need to specify the file ID in the update call, but no body is strictly
             # necessary if only parents are changing via addParents/removeParents.
             # However, for consistency and future expansion, an empty body is often used.
-            file_body = {}
+            file_body: Dict[str, Any] = {}
 
             # Step 3: Execute the update operation to move the file.
             # pylint: disable=maybe-no-member
-            movedFile = (
+            movedFile: ApiResponse = (
                 self.service.files()
                 .update(
                     fileId=fileId,
@@ -369,7 +381,7 @@ class TaggerMenu(object):
                 .execute()
             )
 
-            movedFileId = movedFile.get("id")
+            movedFileId: Optional[FileId] = movedFile.get("id")
             if movedFileId:
                 self.updateDebugMessageQueue(
                     f"Moved file {fileId} (name: '{originalFileName}') to folder {destinationFolderId}."
@@ -388,30 +400,30 @@ class TaggerMenu(object):
             self.updateDebugMessageQueue(f"Error: Could not move file: {e}")
             return None
 
-    def copyFileToFolder(self, fileId, destinationFolderId):
+    def copyFileToFolder(self, fileId: FileId, destinationFolderId: FolderId) -> Optional[FileId]:
         try:
             # Step 1: Get the original file's metadata, including its name and properties.
             # We need 'name' to give the copied file the same name, and 'properties'
             # to transfer the custom 'tag'.
-            originalFileMetadata = (
+            originalFileMetadata: ApiResponse = (
                 self.service.files()
                 .get(fileId=fileId, fields="name, properties")
                 .execute()
             )
 
-            originalFileName = originalFileMetadata.get("name")
-            originalProperties = originalFileMetadata.get("properties", {})
+            originalFileName: str = originalFileMetadata.get("name", "")
+            originalProperties: FileProperties = originalFileMetadata.get("properties", {})
 
             # Extract the 'tag' value if it exists
-            tagValue = originalProperties.get("tag")
+            tagValue: Optional[str] = originalProperties.get("tag")
 
             # Step 1.5 Ensure that there isn't already a file with the same name in
             # the destination folder. (If there is, don't copy file to it because this means the copy method has already been called for this file)
 
-            query = f"name = '{originalFileName}' and '{destinationFolderId}' in parents and trashed = false"
+            query: str = f"name = '{originalFileName}' and '{destinationFolderId}' in parents and trashed = false"
 
             # Execute the search query
-            results = (
+            results: ApiResponse = (
                 self.service.files()
                 .list(
                     q=query,
@@ -420,7 +432,7 @@ class TaggerMenu(object):
                 .execute()
             )
 
-            existingFiles = results.get("files", [])
+            existingFiles: List[FileMetadata] = results.get("files", [])
 
             if existingFiles:
                 # A file with the same name already exists in the destination folder
@@ -431,7 +443,7 @@ class TaggerMenu(object):
 
             # Step 2: Prepare the metadata for the copied file.
             # This includes the name, the parent folder, and the properties.
-            copiedFileMetadata = {
+            copiedFileMetadata: FileMetadata = {
                 "name": originalFileName,
                 "parents": [destinationFolderId],
             }
@@ -447,7 +459,7 @@ class TaggerMenu(object):
 
             # Step 3: Execute the copy operation.
             # pylint: disable=maybe-no-member
-            copiedFile = (
+            copiedFile: ApiResponse = (
                 self.service.files()
                 .copy(
                     fileId=fileId,
@@ -457,7 +469,7 @@ class TaggerMenu(object):
                 .execute()
             )
 
-            copiedFileId = copiedFile.get("id")
+            copiedFileId: Optional[FileId] = copiedFile.get("id")
             if copiedFileId:
                 self.updateDebugMessageQueue(f"Copied {fileId} to {copiedFileId}")
                 return copiedFileId
@@ -476,14 +488,14 @@ class TaggerMenu(object):
             )
             return None
 
-    def updateTagMetadata(self, fileId, tagValue):
+    def updateTagMetadata(self, fileId: FileId, tagValue: TagValue) -> bool:
 
-        new_properties = {"tag": tagValue}
+        new_properties: FileProperties = {"tag": tagValue}
 
-        file_metadata = {"properties": new_properties}
+        file_metadata: FileMetadata = {"properties": new_properties}
 
         try:
-            updatedFile = (
+            updatedFile: ApiResponse = (
                 self.service.files()
                 .update(
                     fileId=fileId,
@@ -507,27 +519,30 @@ class TaggerMenu(object):
     # 1) Downloads a file from Google Drive
     # 2) Calls promptGemini() to analyze it
     # 3) Updates metadata with the tag (or 'Uncategorized' if there is an issue)
-    def downloadFileAndUpdateMetadata(self, fileId, mimeType):
-        temp_file_path = None
+    def downloadFileAndUpdateMetadata(self, fileId: FileId, mimeType: MimeType) -> Optional[ValidationResult]:
+        temp_file_path: Optional[str] = None
 
         try:
             # First, check if the file type is compatible with Gemini
             # If it isn't, set the tag is 'Uncategorized'
-            fileType = mimetypes.guess_extension(
+            fileType: Optional[str] = mimetypes.guess_extension(
                 mimeType, strict=False
             )  # use the mimetypes library to extract file type
 
-            if (fileType is None) or (fileType not in geminiCompatibleFileTypes):
+            if (
+              (fileType is None) or \
+              (fileType not in geminiCompatibleFileTypes)
+            ):
                 self.updateDebugMessageQueue(
                     "Setting incompatible file as 'Uncategorized'"
                 )
                 self.updateTagMetadata(fileId, "Uncategorized")
-                return
+                return None
 
-            request = self.service.files().get_media(fileId=fileId)
-            file = io.BytesIO()
-            downloader = MediaIoBaseDownload(file, request)
-            done = False
+            request: Any = self.service.files().get_media(fileId=fileId)
+            file: io.BytesIO = io.BytesIO()
+            downloader: MediaIoBaseDownload = MediaIoBaseDownload(file, request)
+            done: bool = False
             while done is False:
                 status, done = downloader.next_chunk()
                 self.updateDebugMessageQueue(
@@ -546,7 +561,7 @@ class TaggerMenu(object):
 
             if temp_file_path:
                 # All the conditions are met to send the file to Gemini
-                tagValue = self.promptGemini(temp_file_path, documentAnalyzerPrompt)
+                tagValue: ValidationResult = self.promptGemini(temp_file_path, documentAnalyzerPrompt)
             else:
                 self.updateDebugMessageQueue(
                     f"Error creating temporary file for {fileId}"
@@ -557,10 +572,12 @@ class TaggerMenu(object):
                 return tagValue
 
             self.updateTagMetadata(fileId, tagValue)
+            return None
 
         except Exception as error:
             self.updateDebugMessageQueue(f"An error occurred: {error}")
             file = None
+            return None
         finally:
             if temp_file_path and os.path.exists(temp_file_path):
                 try:
@@ -571,7 +588,7 @@ class TaggerMenu(object):
                 except Exception as e:
                     self.updateDebugMessageQueue(f"Error deleting temporary file: {e}")
 
-    def promptGemini(self, tempFilePath, promptMessage):
+    def promptGemini(self, tempFilePath: str, promptMessage: str) -> ValidationResult:
         """
         gemini-2.0-flash-lite rate limits:
         - 30 requests per minute
@@ -585,16 +602,16 @@ class TaggerMenu(object):
                 self.updateDebugMessageQueue(
                     f"Attempting to upload file to Gemini: {tempFilePath}"
                 )
-                myfile = self.geminiClient.files.upload(file=tempFilePath)
+                myfile: Any = self.geminiClient.files.upload(file=tempFilePath)
                 self.updateDebugMessageQueue(
                     f"Successfully uploaded file to Gemini: {myfile.name}"
                 )
 
-                response = self.geminiClient.models.generate_content(
+                response: Any = self.geminiClient.models.generate_content(
                     model="gemini-2.0-flash-lite", contents=[promptMessage, myfile]
                 )
 
-                cleanedResponse = response.text.strip()
+                cleanedResponse: str = response.text.strip()
 
                 if cleanedResponse in validTags:
                     self.updateDebugMessageQueue(
@@ -632,7 +649,7 @@ class TaggerMenu(object):
         # Verify that the Gemini API key is valid by making a simple request
         try:
             self.geminiClient = genai.Client(api_key=self.geminiKey)
-            response = (
+            response: Any = (
                 self.geminiClient.models.list()
             )  # This will raise an error if the key is invalid
             self.updateDebugMessageQueue(f"Gemini API key is valid.")
@@ -643,7 +660,7 @@ class TaggerMenu(object):
 
     # Checks if the Json file from the Google Cloud project is present.
     def verifyJsonPresent(self) -> bool:
-        filename = "credentials.json"
+        filename: str = "credentials.json"
         if os.path.exists(filename):
             self.updateDebugMessageQueue(f"'{filename}' found successfully")
             return True
@@ -653,21 +670,21 @@ class TaggerMenu(object):
             )
             return False
 
-    def updateDebugMessageQueue(self, message) -> None:
+    def updateDebugMessageQueue(self, message: str) -> None:
         self.debugMessageQueue.put(message)
 
     def checkQueue(self) -> None:
         """Checks the queue for new messages and updates the debug label."""
         try:
             while True:
-                message = self.debugMessageQueue.get_nowait()
+                message: str = self.debugMessageQueue.get_nowait()
                 self.debugLabelName.config(text=f"Debug Output: {message}")
                 self.root.update_idletasks()  # Force GUI update
         except queue.Empty:
             pass  # No messages in the queue
 
         # Schedule this method to run again after a short delay (e.g., 100 ms)
-        self.after_id = self.root.after(100, self.checkQueue)
+        self.after_id: str = self.root.after(100, self.checkQueue)
 
     """
     Crawls through the user's Google Drive and analyzes each file compatible with Gemini.
@@ -676,19 +693,19 @@ class TaggerMenu(object):
   """
 
     def tagEachFile(self) -> None:
-        pageToken = (
+        pageToken: Optional[str] = (
             None  # Used to request the next step of 1000 files from the Drive API
         )
-        pageSize = (
+        pageSize: int = (
             20  # The number of files to retrieve (max allowed per request is 1000)
         )
 
         try:
             while True:
-                nextFilesBatch = []  # The next batch of files to perform tagging on
+                nextFilesBatch: List[Tuple[FileId, MimeType]] = []  # The next batch of files to perform tagging on
 
                 # Get the json file containing the list of files from the Drive API
-                retrievedFilesJson = (
+                retrievedFilesJson: ApiResponse = (
                     self.service.files()
                     .list(
                         pageSize=pageSize,
@@ -698,7 +715,7 @@ class TaggerMenu(object):
                     .execute()
                 )
 
-                fileItems = retrievedFilesJson.get("files", [])
+                fileItems: List[FileMetadata] = retrievedFilesJson.get("files", [])
                 if not fileItems:
                     # self.debugLabel.config(text="No files retrieved from Drive API.")
                     self.updateDebugMessageQueue("No files retrieved from Drive API.")
@@ -713,11 +730,11 @@ class TaggerMenu(object):
                 )
 
                 for file in nextFilesBatch:
-                    fileId = file[0]
-                    mimeType = file[1]
+                    fileId: FileId = file[0]
+                    mimeType: MimeType = file[1]
 
                     # CHECK IF FILE ALREADY HAS TAG
-                    fileMetadata = (
+                    fileMetadata: ApiResponse = (
                         self.service.files()
                         .get(fileId=fileId, fields="properties")
                         .execute()
@@ -734,7 +751,7 @@ class TaggerMenu(object):
                         # File doesn't have tag, so analyze it
                         # self.debugLabel.config(text=f"Analyzing file {fileId}")
                         self.updateDebugMessageQueue(f"Analyzing file {fileId}")
-                        returnedValue = self.downloadFileAndUpdateMetadata(
+                        returnedValue: Optional[ValidationResult] = self.downloadFileAndUpdateMetadata(
                             fileId, mimeType
                         )
                         if returnedValue == "DAILY_LIMIT_EXCEEDED":
@@ -760,17 +777,17 @@ class TaggerMenu(object):
             self.updateDebugMessageQueue(
                 f"An error occurred while retrieving files: {e}"
             )
-            return1
+            return
 
     def organizeFiles(self) -> None:
         # All files, once tagged, will be COPIED into a folder by this name.
         # Copied and not moved in case something goes wrong.
-        baseOrganizedFilesFolderName = "Organized-Drive-Files"
+        baseOrganizedFilesFolderName: str = "Organized-Drive-Files"
 
         # Very similar to tagEachFile() in that it retrieves all file IDs from the Drive API
 
         # Ensure the base folder where all organization will take place exists
-        baseFolderId = self.checkIfFolderExists(folderName=baseOrganizedFilesFolderName)
+        baseFolderId: Optional[FolderId] = self.checkIfFolderExists(folderName=baseOrganizedFilesFolderName)
 
         if baseFolderId:
             # self.debugLabel.config(text=f"Base folder '{baseOrganizedFilesFolderName}' exists, proceeding with organization.")
@@ -778,10 +795,10 @@ class TaggerMenu(object):
                 f"Base folder '{baseOrganizedFilesFolderName}' exists, proceeding with organization."
             )
 
-            pageToken = (
+            pageToken: Optional[str] = (
                 None  # Used to request the next step of 1000 files from the Drive API
             )
-            pageSize = 1000  # The number of files to retrieve (max allowed per request is 1000)
+            pageSize: int = 1000  # The number of files to retrieve (max allowed per request is 1000)
 
             # This next part is pretty ugly, but does the following:
             # 1 - Iteratively retrieves each file from the Drive
@@ -793,7 +810,7 @@ class TaggerMenu(object):
             try:
                 while True:
                     # Get the json file containing the list of files from the Drive API
-                    retrievedFilesJson = (
+                    retrievedFilesJson: ApiResponse = (
                         self.service.files()
                         .list(
                             pageSize=pageSize,
@@ -803,7 +820,7 @@ class TaggerMenu(object):
                         .execute()
                     )
 
-                    fileItems = retrievedFilesJson.get("files", [])
+                    fileItems: List[FileMetadata] = retrievedFilesJson.get("files", [])
                     if not fileItems:
                         # self.debugLabel.config(text="No more files retrieved from Drive API.")
                         self.updateDebugMessageQueue(
@@ -813,15 +830,15 @@ class TaggerMenu(object):
 
                     # Now process each retrieved file
                     for item in fileItems:
-                        fileId = item.get("id")
-                        fileName = item.get("name")
-                        createdTimeStr = item.get("createdTime")
-                        properties = item.get("properties", {})
+                        fileId: FileId = item.get("id", "")
+                        fileName: str = item.get("name", "")
+                        createdTimeStr: Optional[str] = item.get("createdTime")
+                        properties: FileProperties = item.get("properties", {})
 
                         # Extract the year and month from the createdTime
                         # This part is a bit ugly because createdTime is a RFC 3339 formatted string
-                        yearCreated = None
-                        monthCreated = None
+                        yearCreated: Optional[int] = None
+                        monthCreated: Optional[int] = None
 
                         if createdTimeStr:
                             if createdTimeStr.endswith("Z"):
@@ -829,7 +846,7 @@ class TaggerMenu(object):
                             if "." in createdTimeStr:
                                 createdTimeStr = createdTimeStr.split(".")[0]
 
-                            created_dt = datetime.fromisoformat(createdTimeStr)
+                            created_dt: datetime = datetime.fromisoformat(createdTimeStr)
                             yearCreated = created_dt.year
                             monthCreated = created_dt.month
 
@@ -843,7 +860,7 @@ class TaggerMenu(object):
                         # Reminder that the series of folders these files will be stored in is:
                         # Organized-Drive-Files/Year/Month/Tag/FileName
 
-                        yearFolderId = self.checkIfFolderExists(
+                        yearFolderId: Optional[FolderId] = self.checkIfFolderExists(
                             str(yearCreated), baseFolderId
                         )
 
@@ -854,9 +871,9 @@ class TaggerMenu(object):
                             )
 
                             # monthCreated is a number, so find the word (aka 7 -> July) for better folder naming
-                            monthCreatedWord = numberToMonth[monthCreated]
+                            monthCreatedWord: str = numberToMonth[monthCreated]
 
-                            monthFolderId = self.checkIfFolderExists(
+                            monthFolderId: Optional[FolderId] = self.checkIfFolderExists(
                                 monthCreatedWord, yearFolderId
                             )
                             if monthFolderId:
@@ -866,12 +883,12 @@ class TaggerMenu(object):
                                 )
 
                                 # Now check the tag
-                                tagValue = properties.get(
+                                tagValue: Optional[str] = properties.get(
                                     "tag"
                                 )  # Default to 'Uncategorized' if no tag exists
 
                                 if tagValue:
-                                    tagFolderId = self.checkIfFolderExists(
+                                    tagFolderId: Optional[FolderId] = self.checkIfFolderExists(
                                         tagValue, monthFolderId
                                     )
 
@@ -883,7 +900,7 @@ class TaggerMenu(object):
                                                 f"Tag folder for '{tagValue}' exists, proceeding with file moving."
                                             )
 
-                                            movedFileId = self.moveFileToFolder(
+                                            movedFileId: Optional[FileId] = self.moveFileToFolder(
                                                 fileId, tagFolderId
                                             )
 
@@ -900,7 +917,7 @@ class TaggerMenu(object):
                                                 f"Tag folder for '{tagValue}' exists, proceeding with file copying."
                                             )
 
-                                            copiedFileId = self.copyFileToFolder(
+                                            copiedFileId: Optional[FileId] = self.copyFileToFolder(
                                                 fileId, tagFolderId
                                             )
 
@@ -914,7 +931,7 @@ class TaggerMenu(object):
                                                 )
 
                                     else:
-                                        uncategorizedFolderId = (
+                                        uncategorizedFolderId: Optional[FolderId] = (
                                             self.checkIfFolderExists(
                                                 "Uncategorized", monthFolderId
                                             )
@@ -926,7 +943,7 @@ class TaggerMenu(object):
                                             )
 
                                             if self.moveFiles:
-                                                movedFileId = self.moveFileToFolder(
+                                                movedFileId: Optional[FileId] = self.moveFileToFolder(
                                                     fileId, uncategorizedFolderId
                                                 )
 
@@ -939,7 +956,7 @@ class TaggerMenu(object):
                                                         "Failed to move file to 'Uncategorized' folder"
                                                     )
                                             else:
-                                                copiedFileId = self.copyFileToFolder(
+                                                copiedFileId: Optional[FileId] = self.copyFileToFolder(
                                                     fileId, uncategorizedFolderId
                                                 )
 
@@ -986,7 +1003,7 @@ class TaggerMenu(object):
                 if self.verifyJsonPresent():
                     # self.debugLabel.config(text="Proceeding with tagging")
                     # self.tagEachFile()
-                    taggingThread = threading.Thread(target=self.tagEachFile)
+                    taggingThread: threading.Thread = threading.Thread(target=self.tagEachFile)
                     taggingThread.daemon = True
                     taggingThread.start()
                 else:
@@ -996,7 +1013,7 @@ class TaggerMenu(object):
         self.moveFiles = False
         # Must run organizeFiles() in a thread otherwise the GUI will appear to freeze up
         # since no other components can be updated while the method is running
-        sortingThread = threading.Thread(target=self.organizeFiles)
+        sortingThread: threading.Thread = threading.Thread(target=self.organizeFiles)
         sortingThread.daemon = True
         sortingThread.start()
 
@@ -1004,11 +1021,11 @@ class TaggerMenu(object):
         self.moveFiles = True
         # Must run organizeFiles() in a thread otherwise the GUI will appear to freeze up
         # since no other components can be updated while the method is running
-        sortingThread = threading.Thread(target=self.organizeFiles)
+        sortingThread: threading.Thread = threading.Thread(target=self.organizeFiles)
         sortingThread.daemon = True
         sortingThread.start()
 
-    def drawMainMenu(self) ->  None:
+    def drawMainMenu(self) -> None:
         self.instructionLabel.grid(
             row=0, column=0, columnspan=10, padx=0, pady=10, sticky=tk.W
         )
@@ -1033,8 +1050,8 @@ class TaggerMenu(object):
 
 
 def main() -> None:
-    rootWindow = tk.Tk()
-    app = TaggerMenu(rootWindow)
+    rootWindow: tk.Tk = tk.Tk()
+    app: TaggerMenu = TaggerMenu(rootWindow)
     rootWindow.mainloop()
 
 
