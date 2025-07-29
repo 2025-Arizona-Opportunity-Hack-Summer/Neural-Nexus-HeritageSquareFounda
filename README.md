@@ -25,3 +25,6 @@ When you create your Google Cloud project, you will get a .json file that you mu
 In the top left and click **Select a project**
 
 <img width="1028" height="543" alt="Create project - Copy" src="https://github.com/user-attachments/assets/3f683a76-f510-4c64-9cc4-ef83d93f1d14" />
+
+Click "New project" 
+<img width="1006" height="695" alt="CloudImage" src="https://github.com/user-attachments/assets/3e5e9074-e6b5-4fdf-87e2-3c5b1d028bc1" />
