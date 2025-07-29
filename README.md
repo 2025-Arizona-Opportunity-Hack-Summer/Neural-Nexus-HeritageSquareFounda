@@ -31,18 +31,18 @@ You will create your own Google Cloud project so that you do not pass of Drive a
 
 [Watch this video to see how to make a Gemini Key](https://www.youtube.com/watch?v=oAe-IqvlUVk)
 
-Gemini is the AI model that is used to analyze your Drive's files, so you must create an API key which will be entered in a textbox in the tagger program. The program will use a free version of Gemini, however it can only handle 400 calls per day which means if your Drive has more than 400 files then you must run it over the course of multiple days.
+Gemini is the AI model that is used to analyze your Drive's files, so you must create an API key which will be entered in a textbox in the tagger program. The program will use a free version of Gemini, however it can only handle 400 calls per day which means if your Drive has more than 400 files then you must run it multiple times over the course of multiple days. At the bottom of the menu you will see how many untagged files remain. 
 
 # USING THE PROGRAM
 
 After creating the Cloud project and downloading the json file, as well as creating the Gemini API key, you are reading to run the program. Download the "drive-tagger.exe" program from this repository, then double click it to run it.
 
-<img width="758" height="489" alt="TaggerPic - Copy" src="https://github.com/user-attachments/assets/ab7f9a79-e54c-4a27-b9f2-bad09bb9299a" />
+<img width="749" height="476" alt="TaggerPic2" src="https://github.com/user-attachments/assets/5356652a-3ed2-4f12-af7f-6804baba2f59" />
 
 Copy and paste your Gemini API key in to the textbox, then click "Perform file tagging". The first time you run this you will be asked to give permission to your Google account. Since you have created your own Cloud project, you are NOT giving permission to anyone in this team. You are essentially giving permission to yourself. 
 
 The **Perform file tagging** button will go through each file in youe Drive, have Gemini analyze it, then assign one of the following tags based off of its content. We got these from a previous team's document, so hopefully they accurately reflect the genres of files in your Drive:
-### IMPORTANT: The free version of Gemini can only handle 400 files per day! If your Drive has more than 400, you will need to run this program and click "Perform file tagging" over the course of multiple days until all files have been tagged
+### IMPORTANT: The free version of Gemini can only handle 400 files per day! If your Drive has more than 400, you will need to run this program and click "Perform file tagging" over the course of multiple days until all files have been tagged. Note the bottom of the menu to see how many untagged files are remaining.
 
 * Accounting
 * Curation
@@ -58,4 +58,4 @@ The **Perform file tagging** button will go through each file in youe Drive, hav
 
 The other two buttons will organize the files in the following order: Year created -> Month created -> Tag.
 The **COPY tagged files into organized folder** will create a new file and COPY all the tagged files in to this according to the sorting order. I recommend you do this first to see if you like how the files are sorted. Note that this will increase the size of your Drive since it is copying files.
-Alternative, **MOVE tagged files into organized folder** will actually move files according to the above sorting order. 
+Alternative, **MOVE tagged files into organized folder** will actually move files according to the above sorting order. If a file hasn't been tagged yet, then it won't be moved/copied - this means if there are more than 400 files you must run this program then wait 24 hours and run it again until all files have a tag, then select your sorting option.
