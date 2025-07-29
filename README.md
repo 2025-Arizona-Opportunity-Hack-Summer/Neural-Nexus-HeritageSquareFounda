@@ -15,9 +15,20 @@ Please download the executable file "drive-tagger.exe". Currently this program i
 When you create your Google Cloud project, you will get a .json file that you must rename to "credentials.json" and place in the same folder as "drive-tagger.exe".
 
 ## CREATING A GOOGLE CLOUD PROJECT
- 
-[Watch this video to see the steps you must take](https://youtu.be/gx7stcEErJc)
+
+[Click here to open Google Cloud](https://console.cloud.google.com/)
+
+[Watch this video to see how to make a Cloud project](https://youtu.be/gx7stcEErJc)
 
 You will create your own Google Cloud project so that you do not pass of Drive access to us. There is no way any one in our team will be able to access your files because you have your own Cloud project.
 
 **PLEASE NOTE**: You MUST download the json file and rename it to "credentials.json" when creating your Google Cloud project. This json file must be in the same folder as the drive tagger program for it to be able to access your Drive files.
+
+
+## CREATING A GEMINI API KEY
+
+[Click here to open the Gemini website](https://aistudio.google.com/)
+
+[Watch this video to see how to make a Gemini Key](https://www.youtube.com/watch?v=oAe-IqvlUVk)
+
+Gemini is the AI model that is used to analyze your Drive's files, so you must create an API key which will be entered in a textbox in the tagger program. The program will use a free version of Gemini, however it can only handle 400 calls per day which means if your Drive has more than 400 files then you must run it over the course of multiple days.
