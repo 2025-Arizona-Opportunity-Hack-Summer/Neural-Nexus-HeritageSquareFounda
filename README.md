@@ -20,3 +20,4 @@ When you create your Google Cloud project, you will get a .json file that you mu
 
 You will create your own Google Cloud project so that you do not pass of Drive access to us. There is no way any one in our team will be able to access your files because you have your own Cloud project.
 
+**PLEASE NOTE**: You MUST download the json file and rename it to "credentials.json" when creating your Google Cloud project. This json file must be in the same folder as the drive tagger program for it to be able to access your Drive files.
