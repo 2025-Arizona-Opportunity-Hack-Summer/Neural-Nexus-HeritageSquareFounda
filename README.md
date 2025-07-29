@@ -35,7 +35,7 @@ Gemini is the AI model that is used to analyze your Drive's files, so you must c
 
 # USING THE PROGRAM
 
-After creating the Cloud project and downloading the json file, as well as creating the Gemini API key, you are reading to run the program. Download the "drive-tagger.exe" program from this repository, then double click it to run it.
+After creating the Cloud project and downloading the json file, as well as creating the Gemini API key, you are reading to run the program. Download the "drive-tagger.exe" program from the "dist" folder of this repository, then double click it to run it. Make sure to have the "credentials.json" file in the same folder as this program.
 
 <img width="749" height="476" alt="TaggerPic2" src="https://github.com/user-attachments/assets/5356652a-3ed2-4f12-af7f-6804baba2f59" />
 
