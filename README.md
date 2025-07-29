@@ -19,5 +19,7 @@ When you create your Google Cloud project, you will get a .json file that you mu
 [Watch this video to see the steps you must take]()
 
 ### 1. 
-[Go to Google Cloud](https://console.cloud.google.com/)
+[Go to Google Cloud](https://console.cloud.google.com/) and agree to any terms of service pop-ups
 
+2. In the top left and click **Select a project**
+3. <img width="1557" height="898" alt="Create project" src="https://github.com/user-attachments/assets/500e572c-a45c-4362-bbea-3e997d1760d8" />
