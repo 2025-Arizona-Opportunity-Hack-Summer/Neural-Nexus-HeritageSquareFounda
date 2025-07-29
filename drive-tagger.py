@@ -107,6 +107,7 @@ class TaggerMenu:
     self.geminiClient = None # Used to make calls to Gemini API
 
     self.debugMessageQueue = queue.Queue() # Used to update the debug label in the GUI from the tagging thread
+    self.untaggedCountQueue = queue.Queue() # Used to update the untagged file count label in the GUI from the tagging thread
 
     # ------- The widgets for the GUI -------
     #self.debugLabel = tk.Label(self.root, justify=tk.LEFT, bg = "gray75") # Used to print what is happening as the program runs
@@ -116,7 +117,7 @@ class TaggerMenu:
       self.debugFrame,
       justify=tk.LEFT,
       text="Debug Output: ",
-      bg="gray80",
+      bg="gray75",
       wraplength=700  # Wrap text at 700 pixels to prevent excessive width
     )
 
@@ -124,10 +125,12 @@ class TaggerMenu:
     self.geminiApiEntry = tk.Entry(self.root) # Textbox for entering Gemini API key
 
     self.tagButton = tk.Button(self.root, text="Perform file tagging", command=self.tagButtonClicked) # Runs method to analyze each file w/ Gemini and add tag accordingly
-    self.copySortButton = tk.Button(self.root, text="COPY tagged files into organized folder", command=self.copySortButtonClicked, state=tk.DISABLED) # Runs method to organize files based on tag and creation date
-    self.moveSortButton = tk.Button(self.root, text="MOVE tagged files into organized folder", command=self.moveSortButtonClicked, state=tk.DISABLED) # Runs method to organize files based on tag and creation date
+    self.copySortButton = tk.Button(self.root, text="COPY tagged files into organized folder", command=self.copySortButtonClicked) # Runs method to organize files based on tag and creation date
+    self.moveSortButton = tk.Button(self.root, text="MOVE tagged files into organized folder", command=self.moveSortButtonClicked) # Runs method to organize files based on tag and creation date
 
-    instructionString =  "Please ensure credentials.json is in the same folder as this program.\n\nYou will need to click 'Perform file tagging' before files can be sorted.\n\nThe free tier of Google Gemini can only process 400 messages per day.\n\nIf you have more than 400 files then you will need to run this across multiple days."
+    self.untaggedFileCountLabel = tk.Label(self.root, text="Untagged files remaining: ", bg="gray75", justify=tk.LEFT)
+
+    instructionString =  "Please ensure credentials.json is in the same folder as this program.\n\nThe free tier of Google Gemini can only process 400 messages per day.\n\nIf you have more than 400 files then you will need to run this across multiple days."
 
     self.instructionLabel = tk.Label(
       self.root, text=instructionString, 
@@ -501,8 +504,10 @@ class TaggerMenu:
   def updateDebugMessageQueue(self, message):
     self.debugMessageQueue.put(message)
 
+  '''
+    This thread repeatedly loops and updates the labels. Does this to prevent what seems like the GUI freezing.
+  '''
   def checkQueue(self):
-    """Checks the queue for new messages and updates the debug label."""
     try:
       while True:
         message = self.debugMessageQueue.get_nowait()
@@ -511,8 +516,64 @@ class TaggerMenu:
     except queue.Empty:
       pass # No messages in the queue
 
+    try:
+      while True:
+        untaggedCount = self.untaggedCountQueue.get_nowait()
+        self.untaggedFileCountLabel.config(text=f"Untagged files remaining: {untaggedCount}")
+        self.root.update_idletasks() # Force GUI update
+    except queue.Empty:
+      pass
+
     # Schedule this method to run again after a short delay (e.g., 100 ms)
     self.after_id = self.root.after(100, self.checkQueue)
+
+  def updateUntaggedCountQueue(self, count):
+    self.untaggedCountQueue.put(count)
+
+
+  '''
+    Counts how many files have not been tagged yet.
+    This is because Gemini can only handle up to 400 files per day (with the free version),
+    so the user may need to run this program over multiple days if they have over 400 files in their Drive.
+  '''
+  def countUntaggedFiles(self):
+    self.service = self.authenticateDriveAPI()
+    if not self.service:
+      return
+
+    self.updateDebugMessageQueue("Counting untagged files...")
+    untagged_files_count = 0
+    pageToken = None
+    pageSize = 1000 # Max page size for efficiency
+
+    try:
+      while True:
+        retrievedFilesJson = self.service.files().list(
+            pageSize=pageSize,
+            fields="nextPageToken, files(id, name, properties)", # Request 'properties' to check for tags
+            pageToken=pageToken
+        ).execute()
+
+        fileItems = retrievedFilesJson.get('files', [])
+        if not fileItems:
+          self.updateDebugMessageQueue("No more files found in Drive.")
+          break
+
+        for item in fileItems:
+          properties = item.get('properties', {})
+          if 'tag' not in properties:
+            untagged_files_count += 1
+
+        pageToken = retrievedFilesJson.get('nextPageToken', None)
+        if not pageToken:
+          break
+
+      self.updateUntaggedCountQueue(untagged_files_count)
+
+    except HttpError as error:
+      self.updateDebugMessageQueue(f"HTTP error occurred while counting untagged files: {error}")
+    except Exception as e:
+      self.updateDebugMessageQueue(f"Error occurred while counting untagged files: {e}")
 
   '''
     Crawls through the user's Google Drive and analyzes each file compatible with Gemini.
@@ -574,10 +635,11 @@ class TaggerMenu:
         if not pageToken:
           #self.debugLabel.config(text="Done tagging Drive files")
           self.updateDebugMessageQueue("Done tagging Drive files")
-          self.copySortButton.config(state=tk.NORMAL)
-          self.moveSortButton.config(state=tk.NORMAL)
-          return
 
+          taggingThread = threading.Thread(target=self.countUntaggedFiles)
+          taggingThread.daemon = True
+          taggingThread.start()
+          return
     except HttpError as error:
       self.updateDebugMessageQueue("An HTTP error occurred while retrieving files")
       return
@@ -672,7 +734,7 @@ class TaggerMenu:
                 # Now check the tag
                 tagValue = properties.get('tag') # Default to 'Uncategorized' if no tag exists     
 
-                if tagValue:
+                if tagValue in validTags:
                   tagFolderId = self.checkIfFolderExists(tagValue, monthFolderId)
 
                   if tagFolderId:
@@ -696,27 +758,29 @@ class TaggerMenu:
                         self.updateDebugMessageQueue(f"Successfully copied file {fileId} to tag folder '{tagValue}' (ID: {copiedFileId})")
                       else:
                         self.updateDebugMessageQueue("Failed to copy file to tag folder")
+                else:
+                  self.updateDebugMessageQueue(f"No tag associated with file {fileId}, so NOT moving/copying it")
+                  '''
+                  uncategorizedFolderId = self.checkIfFolderExists("Uncategorized", monthFolderId)
 
-                  else:
-                    uncategorizedFolderId = self.checkIfFolderExists("Uncategorized", monthFolderId)
+                  if uncategorizedFolderId:
+                    self.updateDebugMessageQueue("No tag associated with file, so copying to 'Uncategorized' folder")
+                    
+                    if self.moveFiles:
+                      movedFileId = self.moveFileToFolder(fileId, uncategorizedFolderId)
 
-                    if uncategorizedFolderId:
-                      self.updateDebugMessageQueue("No tag associated with file, so copying to 'Uncategorized' folder")
-                      
-                      if self.moveFiles:
-                        movedFileId = self.moveFileToFolder(fileId, uncategorizedFolderId)
-
-                        if movedFileId:
-                          self.updateDebugMessageQueue(f"Successfully moved file {fileId} to 'Uncategorized' folder (ID: {movedFileId})")
-                        else:
-                          self.updateDebugMessageQueue("Failed to move file to 'Uncategorized' folder")
+                      if movedFileId:
+                        self.updateDebugMessageQueue(f"Successfully moved file {fileId} to 'Uncategorized' folder (ID: {movedFileId})")
                       else:
-                        copiedFileId = self.copyFileToFolder(fileId, uncategorizedFolderId)
+                        self.updateDebugMessageQueue("Failed to move file to 'Uncategorized' folder")
+                    else:
+                      copiedFileId = self.copyFileToFolder(fileId, uncategorizedFolderId)
 
-                        if copiedFileId:
-                          self.updateDebugMessageQueue(f"Successfully copied file {fileId} to 'Uncategorized' folder (ID: {copiedFileId})")
-                        else:
-                          self.updateDebugMessageQueue("Failed to copy file to 'Uncategorized' folder")
+                      if copiedFileId:
+                        self.updateDebugMessageQueue(f"Successfully copied file {fileId} to 'Uncategorized' folder (ID: {copiedFileId})")
+                      else:
+                        self.updateDebugMessageQueue("Failed to copy file to 'Uncategorized' folder")
+                  '''
 
           # Update the pageToken for the next iteration
           pageToken = retrievedFilesJson.get('nextPageToken', None)
@@ -784,6 +848,8 @@ class TaggerMenu:
     self.tagButton.grid(row=3, column=0, padx=10, pady=10, sticky=tk.W)
     self.copySortButton.grid(row=3, column=1, padx=10, pady=10, sticky=tk.W)
     self.moveSortButton.grid(row=4, column=1, padx=10, pady=10, sticky=tk.W)
+
+    self.untaggedFileCountLabel.grid(row=5, column=0, padx=0, pady=0, sticky=tk.W)
 
     
 
