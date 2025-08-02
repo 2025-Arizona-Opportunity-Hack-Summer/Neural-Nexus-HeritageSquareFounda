@@ -38,4 +38,5 @@ bun install
 bun run dev
 ```
 
-GO to the drive tagger branch on the repo to learn how to run the drive tagger app!
+Because it was mentioned by Heritage Square, as a side project, we also created a program which analyzes and then organizes the files in a Google Drive. 
+[Please click here to see how to use the program](https://github.com/2025-Arizona-Opportunity-Hack-Summer/Neural-Nexus-HeritageSquareFounda/blob/Drive-Tagger-Branch/README.md)
